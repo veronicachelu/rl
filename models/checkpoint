@@ -1,0 +1,2 @@
+model_checkpoint_path: "model-12500.cptk-12500"
+all_model_checkpoint_paths: "model-12500.cptk-12500"
