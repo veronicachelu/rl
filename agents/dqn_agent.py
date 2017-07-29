@@ -102,9 +102,6 @@ class DQNAgent(BaseAgent):
 
                     s1, r, d, info = self.env.step(a)
 
-                    if episode_step_count == 23:
-                        d = 0
-
                     r = np.clip(r, -1, 1)
                     episode_reward += r
                     episode_step_count += 1
