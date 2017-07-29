@@ -25,7 +25,7 @@ class DQNAgent(BaseAgent):
         self.episode_mean_values = []
         self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
                                           FLAGS.initial_random_action_prob)
-        self.summary_writer = tf.summary.FileWriter(FLAGS.summaries_dir)
+        self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
         self.summary = tf.Summary()
 
         self.q_net = DQNetwork(nb_actions, 'orig')
