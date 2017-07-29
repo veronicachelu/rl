@@ -102,6 +102,9 @@ class DQNAgent(BaseAgent):
 
                     s1, r, d, info = self.env.step(a)
 
+                    if episode_step_count == 23:
+                        d = 0
+
                     r = np.clip(r, -1, 1)
                     episode_reward += r
                     episode_step_count += 1
@@ -114,8 +117,7 @@ class DQNAgent(BaseAgent):
                     if total_steps > FLAGS.observation_steps and total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
 
-                    if d == 23:
-                        break
+
 
                 self.episode_rewards.append(episode_reward)
                 self.episode_lengths.append(episode_step_count)
@@ -126,7 +128,7 @@ class DQNAgent(BaseAgent):
                     if episode_count % FLAGS.checkpoint_interval == 0:
                         self.save_model(saver, episode_count)
 
-                    mean_reward = np.sum(self.episode_rewards[-FLAGS.summary_interval:])
+                    mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
                     mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
                     mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
 
