@@ -33,3 +33,44 @@ class BaseAgent:
         for from_var, to_var in zip(from_vars, to_vars):
             op_holder.append(to_var.assign(from_var))
         return op_holder
+
+    def save_model(self, saver, episode_count):
+        saver.save(self.sess, self.model_path + '/model-' + str(episode_count) + '.cptk',
+                   global_step=self.global_episode)
+
+        print("Saved Model at {}".format(self.model_path + '/model-' + str(episode_count) + '.cptk'))
+
+    def write_summary(self, ms, img_summ, episode_count):
+        summaries = tf.Summary().FromString(ms)
+        sub_summaries_dict = {}
+        for value in summaries.value:
+            value_field = value.WhichOneof('value')
+            value_ifo = sub_summaries_dict.setdefault(value.tag,
+                                                      {'value_field': None, 'values': []})
+            if not value_ifo['value_field']:
+                value_ifo['value_field'] = value_field
+            else:
+                assert value_ifo['value_field'] == value_field
+            value_ifo['values'].append(getattr(value, value_field))
+
+        for name, value_ifo in sub_summaries_dict.items():
+            summary_value = self.summary.value.add()
+            summary_value.tag = name
+            if value_ifo['value_field'] == 'histo':
+                values = value_ifo['values']
+                summary_value.histo.min = min([x.min for x in values])
+                summary_value.histo.max = max([x.max for x in values])
+                summary_value.histo.num = sum([x.num for x in values])
+                summary_value.histo.sum = sum([x.sum for x in values])
+                summary_value.histo.sum_squares = sum([x.sum_squares for x in values])
+                for lim in values[0].bucket_limit:
+                    summary_value.histo.bucket_limit.append(lim)
+                for bucket in values[0].bucket:
+                    summary_value.histo.bucket.append(bucket)
+            else:
+                print(
+                    'Warning: could not aggregate summary of type {}'.format(value_ifo['value_field']))
+        for s in img_summ:
+            self.summary_writer.add_summary(s, episode_count)
+        self.summary_writer.add_summary(self.summary, episode_count)
+        self.summary_writer.flush()

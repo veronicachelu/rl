@@ -62,7 +62,7 @@ class DQNAgent(BaseAgent):
                      self.q_net.actions: actions}
         l, _, ms, img_summ = self.sess.run(
             [self.q_net.action_value_loss,
-             self.q_net.train_operation,
+             self.q_net.train_op,
              self.q_net.merged_summary,
              self.q_net.image_summaries],
             feed_dict=feed_dict)
@@ -114,6 +114,8 @@ class DQNAgent(BaseAgent):
                     if total_steps > FLAGS.observation_steps and total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
 
+                    if d == 23:
+                        break
 
                 self.episode_rewards.append(episode_reward)
                 self.episode_lengths.append(episode_step_count)
@@ -122,11 +124,9 @@ class DQNAgent(BaseAgent):
 
                 if episode_count % FLAGS.summary_interval == 0 and episode_count != 0 and episode_count > FLAGS.observation_steps:
                     if episode_count % FLAGS.checkpoint_interval == 0:
-                        saver.save(self.sess, self.model_path + '/model-' + str(episode_count) + '.cptk',
-                                   global_step=self.global_episode)
-                        print("Saved Model at {}".format(self.model_path + '/model-' + str(episode_count) + '.cptk'))
+                        self.save_model(saver, episode_count)
 
-                    mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
+                    mean_reward = np.sum(self.episode_rewards[-FLAGS.summary_interval:])
                     mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
                     mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
 
@@ -137,48 +137,9 @@ class DQNAgent(BaseAgent):
                     self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
                     self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
                     self.summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-
                     self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
-                    # if False:
-                    summaries = tf.Summary().FromString(ms)
-                    sub_summaries_dict = {}
-                    for value in summaries.value:
-                        value_field = value.WhichOneof('value')
-                        value_ifo = sub_summaries_dict.setdefault(value.tag,
-                                                                  {'value_field': None, 'values': []})
-                        if not value_ifo['value_field']:
-                            value_ifo['value_field'] = value_field
-                        else:
-                            assert value_ifo['value_field'] == value_field
-                        value_ifo['values'].append(getattr(value, value_field))
 
-                    for name, value_ifo in sub_summaries_dict.items():
-                        summary_value = self.summary.value.add()
-                        summary_value.tag = name
-                        if value_ifo['value_field'] == 'histo':
-                            values = value_ifo['values']
-                            summary_value.histo.min = min([x.min for x in values])
-                            summary_value.histo.max = max([x.max for x in values])
-                            summary_value.histo.num = sum([x.num for x in values])
-                            summary_value.histo.sum = sum([x.sum for x in values])
-                            summary_value.histo.sum_squares = sum([x.sum_squares for x in values])
-                            for lim in values[0].bucket_limit:
-                                summary_value.histo.bucket_limit.append(lim)
-                            for bucket in values[0].bucket:
-                                summary_value.histo.bucket.append(bucket)
-                        else:
-                            print(
-                                'Warning: could not aggregate summary of type {}'.format(value_ifo['value_field']))
-                    for s in img_summ:
-                        self.summary_writer.add_summary(s, episode_count)
-                    self.summary_writer.add_summary(self.summary, episode_count)
+                    self.write_summary(ms, img_summ, episode_count)
 
-                    self.summary_writer.flush()
-
-                # gradually reduce the probability of a random actions.
-                if self.probability_of_random_action > FLAGS.final_random_action_prob and len(
-                        self.episode_buffer) > FLAGS.observation_steps:
-                    self.probability_of_random_action -= (
-                                                         FLAGS.initial_random_action_prob - FLAGS.final_random_action_prob) / FLAGS.explore_steps
                 self.sess.run(self.increment_global_episode)
                 episode_count += 1

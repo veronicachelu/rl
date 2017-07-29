@@ -17,6 +17,13 @@ class DQNetwork:
             self.inputs = tf.placeholder(
                 shape=[None, FLAGS.resized_height, FLAGS.resized_width, FLAGS.agent_history_length], dtype=tf.float32,
                 name="Input")
+
+            self.image_summaries = []
+            with tf.variable_scope('inputs'):
+                tf.get_variable_scope().reuse_variables()
+                self.image_summaries.append(
+                    tf.summary.image('input', self.inputs, max_outputs=100))
+
             out = self.inputs
             self.nb_actions = nb_actions
             with tf.variable_scope("convnet"):
@@ -58,7 +65,7 @@ class DQNetwork:
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
-                gradients, train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
                 self.summaries = []
                 self.summaries.append(
                     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
