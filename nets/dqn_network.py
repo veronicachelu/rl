@@ -60,7 +60,7 @@ class DQNetwork:
                                                   reduction_indices=1, name="Q")
                 # Loss functions
                 td_error = self.action_value - self.target_q
-                self.action_value_loss = huber_loss(td_error)
+                self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 else: # default = Adam
