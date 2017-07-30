@@ -6,7 +6,7 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import random_ops
 import tensorflow.contrib.layers as layers
 from utils.tf_util import layer_norm_fn
-from utils.optimizers import huber_loss, minimize_and_clip
+from utils.optimizers import huber_loss, minimize_and_clip, l2_loss, minimize
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -19,13 +19,10 @@ class CategoricalDQNetwork:
                 name="Input")
 
             self.image_summaries = []
-            with tf.variable_scope('inputs'):
-                tf.get_variable_scope().reuse_variables()
-                self.image_summaries.append(
-                    tf.summary.image('input', self.inputs, max_outputs=100))
+            self.image_summaries.append(
+                tf.summary.image('input', self.inputs, max_outputs=FLAGS.batch_size))
 
             out = self.inputs
-
             self.nb_actions = nb_actions
             self.out_size = nb_actions * FLAGS.nb_atoms
 
@@ -69,13 +66,14 @@ class CategoricalDQNetwork:
                 self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
                                                   reduction_indices=1, name="Q")
                 # Loss functions
-                td_error = self.action_value - self.target_q
-                self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
+                self.action_value_loss = -tf.reduce_sum(self.target_q * tf.log(self.action_value))
+
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
-                gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                # gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
                 self.summaries = []
                 self.summaries.append(
                     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))

@@ -21,8 +21,8 @@ class CategoricalDQN:
         sess = tf.Session()
         with sess:
             global_step = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
-            FLAGS = tf.app.flags.FLAGS
-            gym_env = gym.make(FLAGS.game)
+
+            self.env = gym_env = gym.make(FLAGS.game)
             if FLAGS.seed and FLAGS.seed != -1:
                 gym_env.seed(FLAGS.seed)
 
@@ -46,3 +46,7 @@ class CategoricalDQN:
 
     def train(self):
         self.agent.play(self.saver)
+
+        while True:
+            if FLAGS.show_training:
+                self.env.render()

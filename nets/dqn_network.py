@@ -58,23 +58,23 @@ class DQNetwork:
                                                   reduction_indices=1, name="Q")
                 # Loss functions
                 td_error = self.action_value - self.target_q
-                # self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
-                self.action_value_loss = l2_loss(td_error)
+                self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
+                #self.action_value_loss = l2_loss(td_error)
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
-                # gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
-                gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
+                gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                # gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
                 self.summaries = []
-                self.summaries.append(
-                    tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
-                self.summaries.append(tf.contrib.layers.summarize_collection("activations",
-                                                                             summarizer=tf.contrib.layers.summarize_activation))
+                # self.summaries.append(
+                #     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
+                # self.summaries.append(tf.contrib.layers.summarize_collection("activations",
+                #                                                              summarizer=tf.contrib.layers.summarize_activation))
 
                 for grad, weight in gradients:
                     self.summaries.append(tf.summary.histogram(weight.name + '_grad', grad))
-                    # self.summaries.append(tf.summary.histogram(weight.name, weight))
+                    self.summaries.append(tf.summary.histogram(weight.name, weight))
 
                 self.merged_summary = tf.summary.merge(self.summaries)
 

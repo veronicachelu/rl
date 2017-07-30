@@ -6,7 +6,7 @@ tf.app.flags.DEFINE_string('game', 'Catcher-v0',
                            """Experiment name from Atari platform""")
 tf.app.flags.DEFINE_boolean('monitor', False,
                             """Wrap env in monitor""")
-tf.app.flags.DEFINE_boolean('layer_norm', False,
+tf.app.flags.DEFINE_boolean('layer_norm', True,
                             """Use layer normalization""")
 tf.app.flags.DEFINE_boolean('show_training', True,
                             """Show windows with workers training""")
@@ -27,7 +27,7 @@ tf.app.flags.DEFINE_integer('gradient_norm_clipping', 10, """Value to clip the g
 tf.app.flags.DEFINE_integer('memory_size', 1e5, """The size of the memory""")
 tf.app.flags.DEFINE_integer('explore_steps', 1e5, """Number of steps to use for epsilon decay, for exploration""")
 tf.app.flags.DEFINE_integer('observation_steps', 96, """Number of steps to add entries in the experience replay before starting training""")
-tf.app.flags.DEFINE_integer('max_total_steps', 1.2e8, """Total number of steps to use for training""")
+tf.app.flags.DEFINE_integer('max_total_steps', 1200000, """Total number of steps to use for training""")
 tf.app.flags.DEFINE_float('initial_random_action_prob', 1.0, """Initial probability for epsilon greedy exploration""")
 tf.app.flags.DEFINE_float('final_random_action_prob', 0.05, """Final probability for epsilon greedy exploration""")
 

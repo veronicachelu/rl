@@ -7,8 +7,8 @@ from nets.categorical_dqn_network import CategoricalDQNetwork
 from configs import categorical_dqn_flags
 from collections import deque
 from utils.schedules import LinearSchedule
+from utils.timer import Timer
 import os
-
 FLAGS = tf.app.flags.FLAGS
 import random
 
@@ -27,6 +27,8 @@ class CategoricalDQNAgent(BaseAgent):
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
+        self.episode_max_values = []
+        self.episode_min_values = []
         self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
                                           FLAGS.initial_random_action_prob)
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
@@ -48,43 +50,8 @@ class CategoricalDQNAgent(BaseAgent):
         next_observations = rollout[:, 3]
         done = rollout[:, 4]
 
-        target_actionv_values_evaled = self.sess.run(self.target_net.action_values,
-                                                     feed_dict={
-                                                         self.target_net.inputs: np.stack(next_observations, axis=0)})[0]
-        target_actionv_values_evaled = tf.squeeze(tf.matmul(target_actionv_values_evaled, tf.expand_dims(self.support, 1)), 1)
-        a = np.argmax(target_actionv_values_evaled)
-        a_one_hot = np.zeros(self.q_net.nb_actions)
-        a_one_hot[a] = 1
-        a_one_hot = np.tile(a_one_hot, FLAGS.nb_atoms)
-        a_one_hot = np.reshape(a_one_hot, (self.q_net.nb_actions, FLAGS.nb_atoms))
-        target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
-
-        bellman_ops = []
-        # Compute projection of the application of the Bellman operator.
-        for i in range(FLAGS.batch_size):
-            if done[i]:
-                bellman_ops.append(rewards[i])
-            else:
-                bellman_ops.append(
-                    rewards[i] + FLAGS.gamma * self.support)
-        bellman_ops = [tf.clip_by_value(t, FLAGS.v_min, FLAGS.v_max) for t in bellman_ops]
-
-        # Compute categorical indices for distributing the probability
-        m = np.zeros(FLAGS.batch_size, FLAGS.atoms_no)
-        b = [(bellman_op - FLAGS.v_min) / self.delta_z for bellman_op in bellman_ops]
-        l = np.floor(b)
-        u = np.ceil(b)
-
-        # Distribute probability
-        offset = torch.linspace(0, ((batch_sz - 1) * self.atoms_no), batch_sz) \
-            .type(self.dtype.LongTensor) \
-            .unsqueeze(1).expand(batch_sz, self.atoms_no)
-
-        m.view(-1).index_add_(0, (l + offset).view(-1),
-                              (qa_probs * (u.float() - b)).view(-1))
-        m.view(-1).index_add_(0, (u + offset).view(-1),
-                              (qa_probs * (b - l.float())).view(-1))
-        return Variable(m.type(self.dtype.FloatTensor))
+        # Compute target distribution of Q(s_,a)
+        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations)
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
@@ -105,67 +72,90 @@ class CategoricalDQNAgent(BaseAgent):
             self.sess.run(op)
 
     def play(self, saver):
-        episode_count = self.sess.run(self.global_episode)
-        total_steps = 0
+        self.saver = saver
+        train_stats = None
+        _t = {'Total': Timer()}
+        # self.episode_count = self.sess.run(self.global_episode)
+        self.total_steps = self.sess.run(self.global_episode)
+        if self.total_steps == 0:
+            self.updateTarget()
 
         print("Starting agent")
         with self.sess.as_default(), self.graph.as_default():
-            while total_steps < FLAGS.max_total_steps:
-                if total_steps % FLAGS.target_update_freq == 0:
+            while self.total_steps < FLAGS.max_total_steps:
+                if self.total_steps % FLAGS.target_update_freq == 0:
                     self.updateTarget()
                 episode_reward = 0
                 episode_step_count = 0
+                print(self.total_steps)
                 q_values = []
                 d = False
-                self.probability_of_random_action = self.exploration.value(episode_count)
+                # self.probability_of_random_action = self.exploration.value(self.total_steps)
                 s = self.env.get_initial_state()
 
                 while not d:
-                    a, action_values_evaled = self.policy_evaluation(s)
+                    a, max_action_values_evaled = self.policy_evaluation(s)
 
-                    if action_values_evaled is not None:
-                        q_values.append(action_values_evaled)
+                    if max_action_values_evaled is not None:
+                        q_values.append(max_action_values_evaled)
 
                     s1, r, d, info = self.env.step(a)
 
                     r = np.clip(r, -1, 1)
                     episode_reward += r
                     episode_step_count += 1
-                    total_steps += 1
+                    self.total_steps += 1
                     self.episode_buffer.append([s, a, r, s1, d])
+
+                    s = s1
 
                     if len(self.episode_buffer) == FLAGS.memory_size:
                         self.episode_buffer.popleft()
 
-                    if total_steps > FLAGS.observation_steps and total_steps % FLAGS.update_freq == 0:
+                    if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
 
-                self.episode_rewards.append(episode_reward)
-                self.episode_lengths.append(episode_step_count)
-                if len(q_values):
-                    self.episode_mean_values.append(np.max(np.asarray(q_values)))
-
-                if episode_count % FLAGS.summary_interval == 0 and episode_count != 0 and episode_count > FLAGS.observation_steps:
-                    if episode_count % FLAGS.checkpoint_interval == 0:
-                        self.save_model(saver, episode_count)
-
-                    mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
-                    mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
-                    mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
-
-                    # if episode_count % FLAGS.test_performance_interval == 0:
-                    #     won_games = self.episode_rewards[-FLAGS.test_performance_interval:].count(1)
-                    #     self.summary.value.add(tag='Perf/Won Games/1000', simple_value=float(won_games))
-
-                    self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-                    self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-                    self.summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-                    self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
-
-                    self.write_summary(ms, img_summ, episode_count)
+                self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
-                episode_count += 1
+                # self.episode_count += 1
+
+        _t['Total'].toc()
+        fps = self.total_steps / _t['Total'].duration
+        print('Total time is {}, FPS is {}'.format(_t['Total'].average_time, fps))
+
+    def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
+        self.episode_rewards.append(episode_reward)
+        self.episode_lengths.append(episode_step_count)
+        # if len(q_values):
+        #     self.episode_mean_values.append(np.mean(np.asarray(q_values)))
+        #     self.episode_max_values.append(np.max(np.asarray(q_values)))
+        #     self.episode_min_values.append(np.min(np.asarray(q_values)))
+
+        if self.total_steps % FLAGS.summary_interval == 0 and self.total_steps != 0 and self.total_steps > FLAGS.observation_steps:
+            if self.total_steps % FLAGS.checkpoint_interval == 0:
+                self.save_model(self.saver, self.total_steps)
+
+            mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
+            mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
+            # mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
+            # max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
+            # min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
+
+            # if episode_count % FLAGS.test_performance_interval == 0:
+            #     won_games = self.episode_rewards[-FLAGS.test_performance_interval:].count(1)
+            #     self.summary.value.add(tag='Perf/Won Games/1000', simple_value=float(won_games))
+            l, ms, img_summ = train_stats
+
+            self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+            self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
+            self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
+            self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
+            self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
+            self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
+            self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
+
+            self.write_summary(ms, img_summ)
 
     def policy_evaluation(self, s):
         feed_dict = {self.q_net.inputs: [s]}
@@ -174,4 +164,46 @@ class CategoricalDQNAgent(BaseAgent):
         action_values_evaled = tf.squeeze(tf.matmul(action_values_evaled, tf.expand_dims(self.support, 1)), 1)
         a = np.argmax(action_values_evaled)
 
-        return a, action_values_evaled
+        return a, np.max(action_values_evaled)
+
+
+    def get_target_distribution(self, rewards, done, next_observations):
+        target_actionv_values_evaled = self.sess.run(self.target_net.action_values,
+                                                     feed_dict={
+                                                         self.target_net.inputs: np.stack(next_observations, axis=0)})
+
+        target_actionv_values_evaled = tf.squeeze(tf.batch_matmul(target_actionv_values_evaled,
+                                                                  tf.tile(tf.expand_dims(self.support, 1), [FLAGS.batch_size, 1, 1])),
+                                                  2)
+        a = np.argmax(target_actionv_values_evaled, axis=1)
+        a_one_hot = np.zeros(FLAGS.batch_size, self.q_net.nb_actions)
+        a_one_hot[a] = 1
+        a_one_hot = np.tile(a_one_hot, [1, FLAGS.nb_atoms])
+        a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
+        target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=2)
+
+        bellman_ops = []
+        # Compute projection of the application of the Bellman operator.
+        for i in range(FLAGS.batch_size):
+            if done[i]:
+                bellman_ops.append(rewards[i])
+            else:
+                bellman_ops.append(
+                    rewards[i] + FLAGS.gamma * self.support)
+        bellman_ops = [tf.clip_by_value(t, FLAGS.v_min, FLAGS.v_max) for t in bellman_ops]
+
+        # Compute categorical indices for distributing the probability
+        m = np.zeros(FLAGS.batch_size, FLAGS.atoms_no)
+        b = [(bellman_op - FLAGS.v_min) / self.delta_z for bellman_op in bellman_ops]
+        l = np.floor(b)
+        u = np.ceil(b)
+
+        # Distribute probability
+        for j in range(FLAGS.nb_atoms):
+            m[:, l[:, j]] += target_actionv_values_evaled_max[:, j] * (u[:, j] - b[:, j])
+            m[:, u[:, j]] += target_actionv_values_evaled_max[:, j] * (b[:, j] - l[:, j])
+
+        return m
+
+
+

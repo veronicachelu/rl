@@ -26,6 +26,9 @@ class DQNAgent(BaseAgent):
         self.episode_mean_values = []
         self.episode_max_values = []
         self.episode_min_values = []
+        self.episode_mean_returns = []
+        self.episode_max_returns = []
+        self.episode_min_returns = []
         self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
                                           FLAGS.initial_random_action_prob)
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
@@ -63,16 +66,17 @@ class DQNAgent(BaseAgent):
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
                      self.q_net.actions: actions}
-        l, _, ms, img_summ = self.sess.run(
+        l, _, ms, img_summ, returns = self.sess.run(
             [self.q_net.action_value_loss,
              self.q_net.train_op,
              self.q_net.merged_summary,
-             self.q_net.image_summaries],
+             self.q_net.image_summaries,
+             self.action_values],
             feed_dict=feed_dict)
 
-        self.updateTarget()
+        # self.updateTarget()
 
-        return l / len(rollout), ms, img_summ
+        return l / len(rollout), ms, img_summ, returns
 
     def updateTarget(self):
         for op in self.targetOps:
@@ -119,13 +123,12 @@ class DQNAgent(BaseAgent):
                         self.episode_buffer.popleft()
 
                     if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
-                        l, ms, img_summ = self.train()
-                        train_stats = l, ms, img_summ
+                        l, ms, img_summ, returns = self.train()
+                        train_stats = l, ms, img_summ, returns
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
-                # self.episode_count += 1
 
         _t['Total'].toc()
         fps = self.total_steps / _t['Total'].duration
@@ -143,22 +146,34 @@ class DQNAgent(BaseAgent):
             if self.total_steps % FLAGS.checkpoint_interval == 0:
                 self.save_model(self.saver, self.total_steps)
 
+            l, ms, img_summ, returns = train_stats
+
+            self.episode_mean_returns.append(np.mean(np.asarray(returns)))
+            self.episode_max_returns.append(np.max(np.asarray(returns)))
+            self.episode_min_returns.append(np.min(np.asarray(returns)))
+
             mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
             mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
             mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
             max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
             min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
 
+            mean_return = np.mean(self.episode_mean_returns[-FLAGS.summary_interval:])
+            max_return = np.mean(self.episode_max_returns[-FLAGS.summary_interval:])
+            min_return= np.mean(self.episode_min_returns[-FLAGS.summary_interval:])
             # if episode_count % FLAGS.test_performance_interval == 0:
             #     won_games = self.episode_rewards[-FLAGS.test_performance_interval:].count(1)
             #     self.summary.value.add(tag='Perf/Won Games/1000', simple_value=float(won_games))
-            l, ms, img_summ = train_stats
+
 
             self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
             self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
             self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
             self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
             self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
+            self.summary.value.add(tag='Perf/Return_Mean', simple_value=float(mean_return))
+            self.summary.value.add(tag='Perf/Return_Max', simple_value=float(max_return))
+            self.summary.value.add(tag='Perf/Return_Min', simple_value=float(min_return))
             self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
             self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
 
