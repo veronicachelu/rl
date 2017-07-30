@@ -6,11 +6,11 @@ from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import random_ops
 import tensorflow.contrib.layers as layers
 from utils.tf_util import layer_norm_fn
-from utils.optimizers import huber_loss, minimize_and_clip, l2_loss, minimize
+from utils.optimizers import huber_loss, minimize_and_clip
 FLAGS = tf.app.flags.FLAGS
 
 
-class DQNetwork:
+class CategoricalDQNetwork:
     def __init__(self, nb_actions, scope):
         with tf.variable_scope(scope):
 
@@ -19,11 +19,16 @@ class DQNetwork:
                 name="Input")
 
             self.image_summaries = []
-            self.image_summaries.append(
-                tf.summary.image('input', self.inputs, max_outputs=FLAGS.batch_size))
+            with tf.variable_scope('inputs'):
+                tf.get_variable_scope().reuse_variables()
+                self.image_summaries.append(
+                    tf.summary.image('input', self.inputs, max_outputs=100))
 
             out = self.inputs
+
             self.nb_actions = nb_actions
+            self.out_size = nb_actions * FLAGS.nb_atoms
+
             with tf.variable_scope("convnet"):
                 out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
                                       variables_collections=tf.get_collection("variables"),
@@ -44,28 +49,33 @@ class DQNetwork:
                     value_out = layer_norm_fn(value_out, relu=True)
                 else:
                     value_out = tf.nn.relu(value_out)
-                self.action_values = value_out = layers.fully_connected(value_out, num_outputs=nb_actions,
+                value_out = layers.fully_connected(value_out, num_outputs=self.out_size,
                                                    activation_fn=None,
                                                    variables_collections=tf.get_collection("variables"),
                                                    outputs_collections="activations")
+                # value_out = tf.reshape(value_out, [-1, nb_actions, FLAGS.nb_atoms])
+                # value_out = tf.transpose(value_out, [2, 0, 1])
+                # value_out = tf.map_fn(lambda v: tf.nn.softmax(v), value_out)
+                value_out = tf.split(value_out, num_or_size_splits=nb_actions, axis=1)
+                self.action_values = tf.stack(list(map(lambda v: tf.nn.softmax(v), value_out)), 1)
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
                 self.actions_onehot = tf.one_hot(self.actions, nb_actions, dtype=tf.float32, name="actions_one_hot")
                 self.target_q = tf.placeholder(shape=[None], dtype=tf.float32, name="target_Q")
 
+                self.actions_onehot = tf.tile(self.actions_onehot, [1, FLAGS.nb_atoms])
+                self.actions_onehot = tf.reshape(self.actions_onehot, [-1, nb_actions, FLAGS.nb_atoms])
                 self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
                                                   reduction_indices=1, name="Q")
                 # Loss functions
                 td_error = self.action_value - self.target_q
-                # self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
-                self.action_value_loss = l2_loss(td_error)
+                self.action_value_loss = tf.reduce_mean(huber_loss(td_error))
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
-                # gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
-                gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
+                gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
                 self.summaries = []
                 self.summaries.append(
                     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))

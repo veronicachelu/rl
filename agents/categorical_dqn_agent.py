@@ -3,22 +3,26 @@ from threading import Lock
 import numpy as np
 import tensorflow as tf
 from agents.base_agent import BaseAgent
-from nets.dqn_network import DQNetwork
-from configs import dqn_flags
+from nets.categorical_dqn_network import CategoricalDQNetwork
+from configs import categorical_dqn_flags
 from collections import deque
 from utils.schedules import LinearSchedule
 import os
+
 FLAGS = tf.app.flags.FLAGS
 import random
 
-# Starting threads
+# Starting threadsv
 main_lock = Lock()
 
-class DQNAgent(BaseAgent):
+
+class CategoricalDQNAgent(BaseAgent):
     def __init__(self, game, sess, nb_actions, global_step):
         BaseAgent.__init__(self, game, sess, nb_actions, global_step)
         self.name = "DQN_agent"
         self.model_path = os.path.join(FLAGS.checkpoint_dir, FLAGS.algorithm)
+        self.support = tf.linspace(FLAGS.v_min, FLAGS.v_max, FLAGS.nb_atoms, name="categorical_support")
+        self.delta_z = (FLAGS.v_max - FLAGS.v_min) / (FLAGS.nb_atoms - 1)
 
         self.episode_rewards = []
         self.episode_lengths = []
@@ -28,8 +32,8 @@ class DQNAgent(BaseAgent):
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
         self.summary = tf.Summary()
 
-        self.q_net = DQNetwork(nb_actions, 'orig')
-        self.target_net = DQNetwork(nb_actions, 'target')
+        self.q_net = CategoricalDQNetwork(nb_actions, 'orig')
+        self.target_net = CategoricalDQNetwork(nb_actions, 'target')
 
         self.targetOps = self.update_target_graph('orig', 'target')
 
@@ -45,17 +49,42 @@ class DQNAgent(BaseAgent):
         done = rollout[:, 4]
 
         target_actionv_values_evaled = self.sess.run(self.target_net.action_values,
-                                                     feed_dict={self.target_net.inputs: np.stack(next_observations, axis=0)})
-        target_actionv_values_evaled_max = np.max(target_actionv_values_evaled, axis=1)
+                                                     feed_dict={
+                                                         self.target_net.inputs: np.stack(next_observations, axis=0)})[0]
+        target_actionv_values_evaled = tf.squeeze(tf.matmul(target_actionv_values_evaled, tf.expand_dims(self.support, 1)), 1)
+        a = np.argmax(target_actionv_values_evaled)
+        a_one_hot = np.zeros(self.q_net.nb_actions)
+        a_one_hot[a] = 1
+        a_one_hot = np.tile(a_one_hot, FLAGS.nb_atoms)
+        a_one_hot = np.reshape(a_one_hot, (self.q_net.nb_actions, FLAGS.nb_atoms))
+        target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
 
-        target_actionv_values_evaled_new = []
-
+        bellman_ops = []
+        # Compute projection of the application of the Bellman operator.
         for i in range(FLAGS.batch_size):
             if done[i]:
-                target_actionv_values_evaled_new.append(rewards[i])
+                bellman_ops.append(rewards[i])
             else:
-                target_actionv_values_evaled_new.append(
-                    rewards[i] + FLAGS.gamma * target_actionv_values_evaled_max[i])
+                bellman_ops.append(
+                    rewards[i] + FLAGS.gamma * self.support)
+        bellman_ops = [tf.clip_by_value(t, FLAGS.v_min, FLAGS.v_max) for t in bellman_ops]
+
+        # Compute categorical indices for distributing the probability
+        m = np.zeros(FLAGS.batch_size, FLAGS.atoms_no)
+        b = [(bellman_op - FLAGS.v_min) / self.delta_z for bellman_op in bellman_ops]
+        l = np.floor(b)
+        u = np.ceil(b)
+
+        # Distribute probability
+        offset = torch.linspace(0, ((batch_sz - 1) * self.atoms_no), batch_sz) \
+            .type(self.dtype.LongTensor) \
+            .unsqueeze(1).expand(batch_sz, self.atoms_no)
+
+        m.view(-1).index_add_(0, (l + offset).view(-1),
+                              (qa_probs * (u.float() - b)).view(-1))
+        m.view(-1).index_add_(0, (u + offset).view(-1),
+                              (qa_probs * (b - l.float())).view(-1))
+        return Variable(m.type(self.dtype.FloatTensor))
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
@@ -111,8 +140,6 @@ class DQNAgent(BaseAgent):
                     if total_steps > FLAGS.observation_steps and total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
 
-
-
                 self.episode_rewards.append(episode_reward)
                 self.episode_lengths.append(episode_step_count)
                 if len(q_values):
@@ -141,13 +168,10 @@ class DQNAgent(BaseAgent):
                 episode_count += 1
 
     def policy_evaluation(self, s):
-        action_values_evaled = None
-        if random.random() <= self.probability_of_random_action:
-            a = np.random.choice(range(len(self.env.gym_actions)))
-        else:
-            feed_dict = {self.q_net.inputs: [s]}
-            action_values_evaled = self.sess.run(self.q_net.action_values, feed_dict=feed_dict)[0]
+        feed_dict = {self.q_net.inputs: [s]}
+        action_values_evaled = self.sess.run(self.q_net.action_values, feed_dict=feed_dict)[0]
 
-            a = np.argmax(action_values_evaled)
+        action_values_evaled = tf.squeeze(tf.matmul(action_values_evaled, tf.expand_dims(self.support, 1)), 1)
+        a = np.argmax(action_values_evaled)
 
         return a, action_values_evaled

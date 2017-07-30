@@ -1,5 +1,5 @@
 import tensorflow as tf
-from configs import base_flags
+# from configs import base_flags
 
 # Basic model parameters.
 tf.app.flags.DEFINE_string('game', 'Catcher-v0',
@@ -31,6 +31,5 @@ tf.app.flags.DEFINE_integer('max_total_steps', 1200000, """Total number of steps
 tf.app.flags.DEFINE_float('initial_random_action_prob', 1.0, """Initial probability for epsilon greedy exploration""")
 tf.app.flags.DEFINE_float('final_random_action_prob', 0.05, """Final probability for epsilon greedy exploration""")
 
-
-
+tf.app.flags.FLAGS._parse_flags()
 

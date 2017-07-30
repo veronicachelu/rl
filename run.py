@@ -1,6 +1,6 @@
 import tensorflow as tf
 from configs import base_flags
-from baselines.dqn import DQN
+
 import os
 FLAGS = tf.app.flags.FLAGS
 
@@ -39,7 +39,16 @@ def run():
     tf.reset_default_graph()
 
     if FLAGS.algorithm == "DQN":
+        from configs import dqn_flags
+        from baselines.dqn import DQN
         alg = DQN()
+    elif FLAGS.algorithm == "CategoricalDQN":
+        from configs import categorical_dqn_flags
+        from baselines.categorical_dqn import CategoricalDQN
+        alg = CategoricalDQN()
+    else:
+        print("Please specify a valid algorithm name")
+        exit(0)
 
     alg.train()
 

@@ -1,6 +1,6 @@
 import tensorflow as tf
 import numpy as np
-from configs import dqn_flags
+from configs import base_flags
 from collections import deque
 
 FLAGS = tf.app.flags.FLAGS

@@ -6,23 +6,23 @@ from gym import wrappers
 import gym_fast_envs
 # import gym_ple
 import tensorflow as tf
-from agents.dqn_agent import DQNAgent
+from agents.categorical_dqn_agent import CategoricalDQNAgent
 from env_wrappers.atari_environment import AtariEnvironment
-from nets.dqn_network import DQNetwork
+from nets.categorical_dqn_network import CategoricalDQNetwork
 from tensorflow.python import debug as tf_debug
-from configs import dqn_flags
+from configs import categorical_dqn_flags
 
 FLAGS = tf.app.flags.FLAGS
 
 main_lock = Lock()
 
-class DQN:
+class CategoricalDQN:
     def __init__(self):
         sess = tf.Session()
         with sess:
             global_step = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
-
-            self.env = gym_env = gym.make(FLAGS.game)
+            FLAGS = tf.app.flags.FLAGS
+            gym_env = gym.make(FLAGS.game)
             if FLAGS.seed and FLAGS.seed != -1:
                 gym_env.seed(FLAGS.seed)
 
@@ -34,7 +34,7 @@ class DQN:
                                    agent_history_length=FLAGS.agent_history_length)
             nb_actions = len(env.gym_actions)
 
-            self.agent = DQNAgent(env, sess, nb_actions, global_step)
+            self.agent = CategoricalDQNAgent(env, sess, nb_actions, global_step)
             self.saver = tf.train.Saver(max_to_keep=1000)
 
         if FLAGS.resume:
@@ -46,7 +46,3 @@ class DQN:
 
     def train(self):
         self.agent.play(self.saver)
-
-        while True:
-            if FLAGS.show_training:
-                self.env.render()
