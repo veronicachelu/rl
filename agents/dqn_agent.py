@@ -24,6 +24,8 @@ class DQNAgent(BaseAgent):
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
+        self.episode_max_values = []
+        self.episode_min_values = []
         self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
                                           FLAGS.initial_random_action_prob)
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
@@ -78,6 +80,7 @@ class DQNAgent(BaseAgent):
 
     def play(self, saver):
         self.saver = saver
+        train_stats = None
         _t = {'Total': Timer()}
         # self.episode_count = self.sess.run(self.global_episode)
         self.total_steps = self.sess.run(self.global_episode)
@@ -97,16 +100,18 @@ class DQNAgent(BaseAgent):
                 s = self.env.get_initial_state()
 
                 while not d:
-                    a, action_values_evaled = self.policy_evaluation(s)
+                    a, max_action_values_evaled = self.policy_evaluation(s)
 
-                    if action_values_evaled is not None:
-                        q_values.append(action_values_evaled)
+                    if max_action_values_evaled is not None:
+                        q_values.append(max_action_values_evaled)
 
                     s1, r, d, info = self.env.step(a)
 
-                    # r = np.clip(r, -1, 1)
+                    r = np.clip(r, -1, 1)
                     episode_reward += r
                     episode_step_count += 1
+                    self.total_steps += 1
+                    s = s1
                     self.episode_buffer.append([s, a, r, s1, d])
 
                     if len(self.episode_buffer) == FLAGS.memory_size:
@@ -114,8 +119,9 @@ class DQNAgent(BaseAgent):
 
                     if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
+                        train_stats = l, ms, img_summ
 
-                self.add_summary(episode_reward, episode_step_count, q_values, ms, img_summ)
+                self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
                 # self.episode_count += 1
@@ -124,11 +130,13 @@ class DQNAgent(BaseAgent):
         fps = self.total_steps / _t['Total'].average_time
         print('Total time is {}, FPS is {}'.format(_t['Total'].average_time, fps))
 
-    def add_summary(self, episode_reward, episode_step_count, q_values, ms, img_summ):
+    def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
         self.episode_rewards.append(episode_reward)
         self.episode_lengths.append(episode_step_count)
         if len(q_values):
-            self.episode_mean_values.append(np.max(np.asarray(q_values)))
+            self.episode_mean_values.append(np.mean(np.asarray(q_values)))
+            self.episode_max_values.append(np.max(np.asarray(q_values)))
+            self.episode_min_values.append(np.min(np.asarray(q_values)))
 
         if self.total_steps % FLAGS.summary_interval == 0 and self.total_steps != 0 and self.total_steps > FLAGS.observation_steps:
             if self.total_steps % FLAGS.checkpoint_interval == 0:
@@ -137,14 +145,20 @@ class DQNAgent(BaseAgent):
             mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
             mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
             mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
+            max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
+            min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
 
             # if episode_count % FLAGS.test_performance_interval == 0:
             #     won_games = self.episode_rewards[-FLAGS.test_performance_interval:].count(1)
             #     self.summary.value.add(tag='Perf/Won Games/1000', simple_value=float(won_games))
+            l, ms, img_summ = train_stats
 
             self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
             self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-            self.summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
+            self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
+            self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
+            self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
+            self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
             self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
 
             self.write_summary(ms, img_summ)
@@ -160,4 +174,4 @@ class DQNAgent(BaseAgent):
 
             a = np.argmax(action_values_evaled)
 
-        return a, action_values_evaled
+        return a, np.max(action_values_evaled)
