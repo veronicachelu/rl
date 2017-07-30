@@ -111,8 +111,9 @@ class DQNAgent(BaseAgent):
                     episode_reward += r
                     episode_step_count += 1
                     self.total_steps += 1
-                    s = s1
                     self.episode_buffer.append([s, a, r, s1, d])
+
+                    s = s1
 
                     if len(self.episode_buffer) == FLAGS.memory_size:
                         self.episode_buffer.popleft()
