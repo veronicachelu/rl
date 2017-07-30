@@ -128,7 +128,7 @@ class DQNAgent(BaseAgent):
                 # self.episode_count += 1
 
         _t['Total'].toc()
-        fps = self.total_steps / _t['Total'].average_time
+        fps = self.total_steps / _t['Total'].duration
         print('Total time is {}, FPS is {}'.format(_t['Total'].average_time, fps))
 
     def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
