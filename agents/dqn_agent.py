@@ -85,15 +85,17 @@ class DQNAgent(BaseAgent):
     def play(self, saver):
         self.saver = saver
         train_stats = None
-        _t = {'Total': Timer()}
+
         # self.episode_count = self.sess.run(self.global_episode)
         self.total_steps = self.sess.run(self.global_episode)
         if self.total_steps == 0:
             self.updateTarget()
 
+
         print("Starting agent")
         with self.sess.as_default(), self.graph.as_default():
             while self.total_steps < FLAGS.max_total_steps:
+                _t = {'Total': Timer()}
                 if self.total_steps % FLAGS.target_update_freq == 0:
                     self.updateTarget()
                 episode_reward = 0
@@ -126,13 +128,15 @@ class DQNAgent(BaseAgent):
                         l, ms, img_summ, returns = self.train()
                         train_stats = l, ms, img_summ, returns
 
+                _t['Total'].toc()
+
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
 
-        _t['Total'].toc()
-        fps = self.total_steps / _t['Total'].duration
-        print('Total time is {}, FPS is {}'.format(_t['Total'].average_time, fps))
+
+        # fps = self.total_steps / _t['Total'].duration
+        print('Average time per episod is {}'.format(_t['Total'].average_time))
 
     def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
         self.episode_rewards.append(episode_reward)
