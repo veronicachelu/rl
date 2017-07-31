@@ -178,7 +178,7 @@ class CategoricalDQNAgent(BaseAgent):
 
     def policy_evaluation(self, s):
         feed_dict = {self.q_net.inputs: [s]}
-        action_values_evaled = self.sess.run(self.q_net.action_values, feed_dict=feed_dict)[0]
+        action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
         action_values_evaled = np.squeeze(np.matmul(action_values_evaled, np.expand_dims(self.support, 1)), 1)
         a = np.argmax(action_values_evaled)
@@ -187,7 +187,7 @@ class CategoricalDQNAgent(BaseAgent):
 
 
     def get_target_distribution(self, rewards, done, next_observations):
-        target_actionv_values_evaled = self.sess.run(self.target_net.action_values,
+        target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
                                                      feed_dict={
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
 

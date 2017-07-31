@@ -53,8 +53,8 @@ class CategoricalDQNetwork:
                 self.action_values = tf.reshape(value_out, [-1, nb_actions, FLAGS.nb_atoms])
                 # value_out = tf.transpose(value_out, [2, 0, 1])
                 # value_out = tf.map_fn(lambda v: tf.nn.softmax(v), value_out)
-                # value_out = tf.split(value_out, num_or_size_splits=nb_actions, axis=1)
-                # self.action_values = tf.stack(list(map(lambda v: tf.nn.softmax(v), value_out)), 1)
+                value_out = tf.split(value_out, num_or_size_splits=nb_actions, axis=1)
+                self.action_values_soft = tf.stack(list(map(lambda v: tf.nn.softmax(v), value_out)), 1)
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
