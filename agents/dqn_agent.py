@@ -71,7 +71,7 @@ class DQNAgent(BaseAgent):
              self.q_net.train_op,
              self.q_net.merged_summary,
              self.q_net.image_summaries,
-             self.action_values],
+             self.q_net.action_values],
             feed_dict=feed_dict)
 
         # self.updateTarget()
