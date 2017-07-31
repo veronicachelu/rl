@@ -129,6 +129,7 @@ class DQNAgent(BaseAgent):
                         train_stats = l, ms, img_summ, returns
 
                 _t['Total'].toc()
+                print('Partial average time is {}'.format(_t['Total'].average_time))
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
