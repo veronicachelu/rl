@@ -93,9 +93,10 @@ class DQNAgent(BaseAgent):
 
 
         print("Starting agent")
+        _t = {'episode': Timer(), "step": Timer()}
         with self.sess.as_default(), self.graph.as_default():
             while self.total_steps < FLAGS.max_total_steps:
-                _t = {'Total': Timer()}
+                _t["episode"].tic()
                 if self.total_steps % FLAGS.target_update_freq == 0:
                     self.updateTarget()
                 episode_reward = 0
@@ -106,6 +107,7 @@ class DQNAgent(BaseAgent):
                 s = self.env.get_initial_state()
 
                 while not d:
+                    _t["step"].tic()
                     a, max_action_values_evaled = self.policy_evaluation(s)
 
                     if max_action_values_evaled is not None:
@@ -128,16 +130,18 @@ class DQNAgent(BaseAgent):
                         l, ms, img_summ, returns = self.train()
                         train_stats = l, ms, img_summ, returns
 
-                _t['Total'].toc()
-                print('Partial average time is {}'.format(_t['Total'].average_time))
+                    print('Avg time per step is {}'.format(_t["step"].toc()))
+
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
 
+                print('Avg time per episode is {}'.format(_t["episode"].toc()))
+
 
         # fps = self.total_steps / _t['Total'].duration
-        print('Average time per episod is {}'.format(_t['Total'].average_time))
+        # print('Average time per episod is {}'.format(_t['episode'].average_time))
 
     def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
         self.episode_rewards.append(episode_reward)
