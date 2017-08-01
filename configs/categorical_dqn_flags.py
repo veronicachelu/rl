@@ -29,8 +29,8 @@ tf.app.flags.DEFINE_integer('explore_steps', 50000, """Number of steps to use fo
 tf.app.flags.DEFINE_integer('observation_steps', 64,
                             """Number of steps to add entries in the experience replay before starting training""")
 tf.app.flags.DEFINE_integer('max_total_steps', 1200000, """Total number of steps to use for training""")
-tf.app.flags.DEFINE_float('initial_random_action_prob', 0.3, """Initial probability for epsilon greedy exploration""")
-tf.app.flags.DEFINE_float('final_random_action_prob', 0.05, """Final probability for epsilon greedy exploration""")
+tf.app.flags.DEFINE_float('initial_random_action_prob', 1.0, """Initial probability for epsilon greedy exploration""")
+tf.app.flags.DEFINE_float('final_random_action_prob', 0.01, """Final probability for epsilon greedy exploration""")
 tf.app.flags.DEFINE_integer('nb_atoms', 51, """The number of atoms to use in the distribution""")
 tf.app.flags.DEFINE_float('v_min', -3.0, """Minimum value function for the distribution of returns""")
 tf.app.flags.DEFINE_float('v_max', 3.0, """Maximum value function for the distribution of returns""")

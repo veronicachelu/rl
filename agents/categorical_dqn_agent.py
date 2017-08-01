@@ -177,11 +177,16 @@ class CategoricalDQNAgent(BaseAgent):
             self.write_summary(ms, img_summ)
 
     def policy_evaluation(self, s):
-        feed_dict = {self.q_net.inputs: [s]}
-        action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
+        action_values_evaled = None
+        self.probability_of_random_action = self.exploration.value(self.total_steps)
+        if random.random() <= self.probability_of_random_action:
+            a = np.random.choice(range(len(self.env.gym_actions)))
+        else:
+            feed_dict = {self.q_net.inputs: [s]}
+            action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
-        action_values_evaled = np.squeeze(np.matmul(action_values_evaled, np.expand_dims(self.support, 1)), 1)
-        a = np.argmax(action_values_evaled)
+            action_values_evaled = np.squeeze(np.matmul(action_values_evaled, np.expand_dims(self.support, 1)), 1)
+            a = np.argmax(action_values_evaled)
 
         return a, np.max(action_values_evaled)
 
