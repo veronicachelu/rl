@@ -54,7 +54,7 @@ class CategoricalDQNAgent(BaseAgent):
         done = rollout[:, 4]
 
         # Compute target distribution of Q(s_,a)
-        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations)
+        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations, actions)
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
@@ -193,7 +193,7 @@ class CategoricalDQNAgent(BaseAgent):
         return a, np.max(action_values_evaled)
 
 
-    def get_target_distribution(self, rewards, done, next_observations):
+    def get_target_distribution(self, rewards, done, next_observations, actions):
         target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
                                                      feed_dict={
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
@@ -201,9 +201,10 @@ class CategoricalDQNAgent(BaseAgent):
         target_actionv_values_evaled_temp = np.squeeze(np.matmul(target_actionv_values_evaled,
                                                                   np.tile(np.expand_dims(np.expand_dims(self.support, 1), 0), [FLAGS.batch_size, 1, 1])),
                                                   2)
-        a = np.argmax(target_actionv_values_evaled_temp, axis=1)
+        # a = np.argmax(target_actionv_values_evaled_temp, axis=1)
+        actions = np.asarray(actions, dtype=np.int32)
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
-        a_one_hot[:, a, :] = 1
+        a_one_hot[:, actions, :] = 1
         # a_one_hot = np.tile(np.expand_dims(a_one_hot, 2), [1, 1, FLAGS.nb_atoms])
         # a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
         target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
