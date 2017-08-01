@@ -211,7 +211,7 @@ class CategoricalDQNAgent(BaseAgent):
         target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
 
         rewards = np.tile(np.expand_dims(np.asarray(rewards, dtype=np.float32), 1), [1, FLAGS.nb_atoms])
-        gamma = np.tile(np.expand_dims(np.asarray(done, dtype=np.int32) * FLAGS.gamma, 1), [1, FLAGS.nb_atoms])
+        gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1), [1, FLAGS.nb_atoms])
         # Compute projection of the application of the Bellman operator.
         bellman = rewards + gamma * np.tile(np.expand_dims(self.support, 0), [FLAGS.batch_size, 1])
         bellman = np.clip(bellman, FLAGS.v_min, FLAGS.v_max)
