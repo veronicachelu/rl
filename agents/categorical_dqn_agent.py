@@ -121,15 +121,17 @@ class CategoricalDQNAgent(BaseAgent):
                         l, ms, img_summ = self.train()
                         train_stats = l, ms, img_summ
 
-                    print('Avg time per step is {:.3f}'.format(_t["step"].toc()))
+                    _t["step"].toc()
 
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
                 self.sess.run(self.increment_global_episode)
 
-                print('Avg time per episode is {:.3f}'.format(_t["episode"].toc()))
+                _t["episode"].toc()
 
+        print('Avg time per step is {:.3f}'.format(_t["step"].average_time()))
+        print('Avg time per episode is {:.3f}'.format(_t["episode"].average_time()))
 
         # fps = self.total_steps / _t['Total'].duration
         # print('Average time per episod is {}'.format(_t['episode'].average_time))
