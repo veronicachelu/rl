@@ -234,7 +234,7 @@ class CategoricalDQNAgent(BaseAgent):
         # ax.autoscale(tight=True)
         #
         # plt.show()
-        # return m
+        return m
 
 
 
