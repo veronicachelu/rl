@@ -24,7 +24,7 @@ class CategoricalDQNetwork:
 
             out = self.inputs
             self.nb_actions = nb_actions
-            self.out_size = nb_actions * FLAGS.nb_atoms
+            self.out_size = self.nb_actions * FLAGS.nb_atoms
 
             with tf.variable_scope("convnet"):
                 out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
@@ -50,19 +50,19 @@ class CategoricalDQNetwork:
                                                    activation_fn=None,
                                                    variables_collections=tf.get_collection("variables"),
                                                    outputs_collections="activations")
-                self.action_values = tf.reshape(value_out, [-1, nb_actions, FLAGS.nb_atoms])
+                self.action_values = tf.reshape(value_out, [-1, self.nb_actions, FLAGS.nb_atoms])
                 # value_out = tf.transpose(value_out, [2, 0, 1])
                 # value_out = tf.map_fn(lambda v: tf.nn.softmax(v), value_out)
-                value_out = tf.split(value_out, num_or_size_splits=nb_actions, axis=1)
+                value_out = tf.split(value_out, num_or_size_splits=self.nb_actions, axis=1)
                 self.action_values_soft = tf.stack(list(map(lambda v: tf.nn.softmax(v), value_out)), 1)
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
-                self.actions_onehot = tf.one_hot(self.actions, nb_actions, dtype=tf.float32, name="actions_one_hot")
+                self.actions_onehot = tf.one_hot(self.actions, self.nb_actions, dtype=tf.float32, name="actions_one_hot")
                 self.target_q = tf.placeholder(shape=[None, FLAGS.nb_atoms], dtype=tf.float32, name="target_Q")
 
-                self.actions_onehot = tf.tile(self.actions_onehot, [1, FLAGS.nb_atoms])
-                self.actions_onehot = tf.reshape(self.actions_onehot, [-1, nb_actions, FLAGS.nb_atoms])
+                self.actions_onehot = tf.tile(tf.expand_dims(self.actions_onehot, 2), [1, 1, FLAGS.nb_atoms])
+                # self.actions_onehot = tf.reshape(self.actions_onehot, [-1, self.nb_actions, FLAGS.nb_atoms])
                 self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
                                                   reduction_indices=1, name="Q")
                 # Loss functions

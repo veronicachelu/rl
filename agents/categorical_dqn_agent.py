@@ -59,11 +59,13 @@ class CategoricalDQNAgent(BaseAgent):
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
                      self.q_net.actions: actions}
-        l, _, ms, img_summ = self.sess.run(
+        l, _, ms, img_summ, q, q_distrib = self.sess.run(
             [self.q_net.action_value_loss,
              self.q_net.train_op,
              self.q_net.merged_summary,
-             self.q_net.image_summaries],
+             self.q_net.image_summaries,
+             self.q_net.action_value,
+             self.q_net.action_values_soft],
             feed_dict=feed_dict)
 
         self.updateTarget()
@@ -187,7 +189,7 @@ class CategoricalDQNAgent(BaseAgent):
         feed_dict = {self.q_net.inputs: [s]}
         action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
-        action_values_evaled = np.squeeze(np.matmul(action_values_evaled, np.expand_dims(self.support, 1)), 1)
+        action_values_evaled = np.sum(np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
         a = np.argmax(action_values_evaled)
 
         return a, np.max(action_values_evaled)
@@ -198,8 +200,8 @@ class CategoricalDQNAgent(BaseAgent):
                                                      feed_dict={
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
 
-        target_actionv_values_evaled_temp = np.squeeze(np.matmul(target_actionv_values_evaled,
-                                                                  np.tile(np.expand_dims(np.expand_dims(self.support, 1), 0), [FLAGS.batch_size, 1, 1])),
+        target_actionv_values_evaled_temp = np.sum(np.multiply(target_actionv_values_evaled,
+                                                                  np.tile(np.expand_dims(np.expand_dims(self.support, 0), 1), [FLAGS.batch_size, self.nb_actions, 1])),
                                                   2)
 
         a = np.argmax(target_actionv_values_evaled_temp, axis=1)
