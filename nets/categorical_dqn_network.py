@@ -79,7 +79,7 @@ class CategoricalDQNetwork:
                     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
                 self.summaries.append(tf.contrib.layers.summarize_collection("activations",
                                                                              summarizer=tf.contrib.layers.summarize_activation))
-                summary_action_value = tf.contrib.layers.summarize_activation(self.action_value)
+                summary_action_value = tf.contrib.layers.summarize_activation(self.action_value_logit)
                 self.summaries.append(summary_action_value)
                 summary_action_values_soft = tf.contrib.layers.summarize_activation(self.action_values_soft)
                 self.summaries.append(summary_action_values_soft)
