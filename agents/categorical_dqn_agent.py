@@ -198,24 +198,23 @@ class CategoricalDQNAgent(BaseAgent):
         return a, np.max(action_values_evaled)
 
     def get_target_distribution(self, rewards, done, next_observations, actions):
-        target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
+        p = self.sess.run(self.target_net.action_values_soft,
                                                      feed_dict={
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
 
-        target_actionv_values_evaled_temp = np.sum(np.multiply(target_actionv_values_evaled,
-                                                               np.tile(
+        target_actionv_values = np.sum(np.multiply(p, np.tile(
                                                                    np.expand_dims(np.expand_dims(self.support, 0), 1),
                                                                    [FLAGS.batch_size, self.nb_actions, 1])),
                                                    2)
 
-        a = np.argmax(target_actionv_values_evaled_temp, axis=1)
+        a = np.argmax(target_actionv_values, axis=1)
 
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
         # a_one_hot[:, a, :] = 1
         a_one_hot[np.arange(FLAGS.batch_size), a] = 1
         # a_one_hot = np.tile(np.expand_dims(a_one_hot, 2), [1, 1, FLAGS.nb_atoms])
         # a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
-        target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
+        p_a_star = np.sum(np.multiply(p, a_one_hot), axis=1)
 
         rewards = np.tile(np.expand_dims(np.asarray(rewards, dtype=np.float32), 1), [1, FLAGS.nb_atoms])
         gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1),
@@ -232,8 +231,8 @@ class CategoricalDQNAgent(BaseAgent):
 
         # Distribute probability
         for j in range(FLAGS.nb_atoms):
-            m[:, l[:, j]] += target_actionv_values_evaled_max[:, j] * (u[:, j] - b[:, j])
-            m[:, u[:, j]] += target_actionv_values_evaled_max[:, j] * (b[:, j] - l[:, j])
+            m[:, l[:, j]] += p_a_star[:, j] * (u[:, j] - b[:, j])
+            m[:, u[:, j]] += p_a_star[:, j] * (b[:, j] - l[:, j])
 
         # import matplotlib.pyplot as plt
         # ax = plt.subplot(111)
