@@ -235,11 +235,11 @@ class CategoricalDQNAgent(BaseAgent):
             m[:, l[:, j]] += target_actionv_values_evaled_max[:, j] * (u[:, j] - b[:, j])
             m[:, u[:, j]] += target_actionv_values_evaled_max[:, j] * (b[:, j] - l[:, j])
 
-        import matplotlib.pyplot as plt
-        ax = plt.subplot(111)
-        p1 = ax.step(bellman[0], target_actionv_values_evaled_max[0], color='red')
-        p2 = ax.step(self.support, m[0], color='blue')
-        ax.autoscale(tight=True)
-
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # ax = plt.subplot(111)
+        # p1 = ax.step(bellman[0], target_actionv_values_evaled_max[0], color='red')
+        # p2 = ax.step(self.support, m[0], color='blue')
+        # ax.autoscale(tight=True)
+        #
+        # plt.show()
         return m
