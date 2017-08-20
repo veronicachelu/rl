@@ -59,14 +59,14 @@ class CategoricalDQNetwork:
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
                 self.actions_onehot = tf.one_hot(self.actions, self.nb_actions, dtype=tf.float32, name="actions_one_hot")
-                self.target_p = tf.placeholder(shape=[None, FLAGS.nb_atoms], dtype=tf.float32, name="target_Q")
+                self.target_q = tf.placeholder(shape=[None, FLAGS.nb_atoms], dtype=tf.float32, name="target_Q")
 
                 self.actions_onehot = tf.tile(tf.expand_dims(self.actions_onehot, 2), [1, 1, FLAGS.nb_atoms])
                 # self.actions_onehot = tf.reshape(self.actions_onehot, [-1, self.nb_actions, FLAGS.nb_atoms])
-                self.action_value_logit = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
-                                                  reduction_indices=1, name="p_logit")
+                self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
+                                                  reduction_indices=1, name="Q")
                 # Loss functions
-                self.action_value_loss = -tf.reduce_sum(tf.multiply(self.target_p, tf.nn.log_softmax(self.action_value_logit)))
+                self.action_value_loss = -tf.reduce_sum(tf.multiply(self.target_q, tf.nn.log_softmax(self.action_value)))
 
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
@@ -79,7 +79,7 @@ class CategoricalDQNetwork:
                     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
                 self.summaries.append(tf.contrib.layers.summarize_collection("activations",
                                                                              summarizer=tf.contrib.layers.summarize_activation))
-                summary_action_value = tf.contrib.layers.summarize_activation(self.action_value_logit)
+                summary_action_value = tf.contrib.layers.summarize_activation(self.action_value)
                 self.summaries.append(summary_action_value)
                 summary_action_values_soft = tf.contrib.layers.summarize_activation(self.action_values_soft)
                 self.summaries.append(summary_action_values_soft)
