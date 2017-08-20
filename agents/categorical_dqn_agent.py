@@ -207,7 +207,8 @@ class CategoricalDQNAgent(BaseAgent):
         a = np.argmax(target_actionv_values_evaled_temp, axis=1)
 
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
-        a_one_hot[:, a, :] = 1
+        # a_one_hot[:, a, :] = 1
+        a_one_hot[np.arange(FLAGS.batch_size), a] = 1
         # a_one_hot = np.tile(np.expand_dims(a_one_hot, 2), [1, 1, FLAGS.nb_atoms])
         # a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
         target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)

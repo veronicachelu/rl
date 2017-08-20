@@ -81,8 +81,9 @@ class CategoricalDQNetwork:
                 #                                                              summarizer=tf.contrib.layers.summarize_activation))
 
                 for grad, weight in gradients:
-                    self.summaries.append(tf.summary.histogram(weight.name + '_grad', grad))
-                    self.summaries.append(tf.summary.histogram(weight.name, weight))
+                    if grad is not None:
+                        self.summaries.append(tf.summary.histogram(weight.name + '_grad', grad))
+                        self.summaries.append(tf.summary.histogram(weight.name, weight))
 
                 self.merged_summary = tf.summary.merge(self.summaries)
 
