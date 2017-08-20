@@ -9,6 +9,7 @@ from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
+
 FLAGS = tf.app.flags.FLAGS
 import random
 
@@ -119,12 +120,12 @@ class CategoricalDQNAgent(BaseAgent):
                     if len(self.episode_buffer) == FLAGS.memory_size:
                         self.episode_buffer.popleft()
 
-                    if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
+                    if self.total_steps > FLAGS.observation_steps and len(
+                            self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
                         train_stats = l, ms, img_summ
 
                     _t["step"].toc()
-
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
@@ -175,7 +176,8 @@ class CategoricalDQNAgent(BaseAgent):
             # self.summary.value.add(tag='Perf/Return_Mean', simple_value=float(mean_return))
             # self.summary.value.add(tag='Perf/Return_Max', simple_value=float(max_return))
             # self.summary.value.add(tag='Perf/Return_Min', simple_value=float(min_return))
-            self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
+            self.summary.value.add(tag='Perf/Probability_random_action',
+                                   simple_value=float(self.probability_of_random_action))
             self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
 
             self.write_summary(ms, img_summ)
@@ -189,11 +191,11 @@ class CategoricalDQNAgent(BaseAgent):
             feed_dict = {self.q_net.inputs: [s]}
             action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
-            action_values_evaled = np.sum(np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
+            action_values_evaled = np.sum(
+                np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
             a = np.argmax(action_values_evaled)
 
         return a, np.max(action_values_evaled)
-
 
     def get_target_distribution(self, rewards, done, next_observations, actions):
         target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
@@ -201,8 +203,10 @@ class CategoricalDQNAgent(BaseAgent):
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
 
         target_actionv_values_evaled_temp = np.sum(np.multiply(target_actionv_values_evaled,
-                                                                  np.tile(np.expand_dims(np.expand_dims(self.support, 0), 1), [FLAGS.batch_size, self.nb_actions, 1])),
-                                                  2)
+                                                               np.tile(
+                                                                   np.expand_dims(np.expand_dims(self.support, 0), 1),
+                                                                   [FLAGS.batch_size, self.nb_actions, 1])),
+                                                   2)
 
         a = np.argmax(target_actionv_values_evaled_temp, axis=1)
 
@@ -214,7 +218,8 @@ class CategoricalDQNAgent(BaseAgent):
         target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
 
         rewards = np.tile(np.expand_dims(np.asarray(rewards, dtype=np.float32), 1), [1, FLAGS.nb_atoms])
-        gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1), [1, FLAGS.nb_atoms])
+        gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1),
+                        [1, FLAGS.nb_atoms])
         # Compute projection of the application of the Bellman operator.
         bellman = rewards + gamma * np.tile(np.expand_dims(self.support, 0), [FLAGS.batch_size, 1])
         bellman = np.clip(bellman, FLAGS.v_min, FLAGS.v_max)
@@ -230,14 +235,11 @@ class CategoricalDQNAgent(BaseAgent):
             m[:, l[:, j]] += target_actionv_values_evaled_max[:, j] * (u[:, j] - b[:, j])
             m[:, u[:, j]] += target_actionv_values_evaled_max[:, j] * (b[:, j] - l[:, j])
 
-        # import matplotlib.pyplot as plt
-        # ax = plt.subplot(111)
-        # p1 = ax.step(self.support, target_actionv_values_evaled_max[0], color='red')
-        # p2 = ax.step(self.support, m[0], color='blue')
-        # ax.autoscale(tight=True)
-        #
-        # plt.show()
+        import matplotlib.pyplot as plt
+        ax = plt.subplot(111)
+        p1 = ax.step(bellman[0], target_actionv_values_evaled_max[0], color='red')
+        p2 = ax.step(self.support, m[0], color='blue')
+        ax.autoscale(tight=True)
+
+        plt.show()
         return m
-
-
-

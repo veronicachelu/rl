@@ -66,7 +66,7 @@ class CategoricalDQNetwork:
                 self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
                                                   reduction_indices=1, name="Q")
                 # Loss functions
-                self.action_value_loss = -tf.reduce_sum(self.target_q * tf.nn.log_softmax(self.action_value))
+                self.action_value_loss = -tf.reduce_sum(tf.multiply(self.target_q, tf.nn.log_softmax(self.action_value)))
 
                 if FLAGS.optimizer == "Adam": # to add more optimizers
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
@@ -75,10 +75,10 @@ class CategoricalDQNetwork:
                 gradients, self.train_op = minimize_and_clip(optimizer, self.action_value_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
                 # gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
                 self.summaries = []
-                # self.summaries.append(
-                #     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
-                # self.summaries.append(tf.contrib.layers.summarize_collection("activations",
-                #                                                              summarizer=tf.contrib.layers.summarize_activation))
+                self.summaries.append(
+                    tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
+                self.summaries.append(tf.contrib.layers.summarize_collection("activations",
+                                                                             summarizer=tf.contrib.layers.summarize_activation))
 
                 for grad, weight in gradients:
                     if grad is not None:
