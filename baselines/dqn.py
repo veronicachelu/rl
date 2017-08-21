@@ -11,7 +11,7 @@ from env_wrappers.atari_environment import AtariEnvironment
 from nets.dqn_network import DQNetwork
 from tensorflow.python import debug as tf_debug
 from configs import dqn_flags
-
+import os
 FLAGS = tf.app.flags.FLAGS
 
 main_lock = Lock()
@@ -38,7 +38,8 @@ class DQN:
             self.saver = tf.train.Saver(max_to_keep=1000)
 
         if FLAGS.resume:
-            ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
+            checkpoint_dir = os.path.join(FLAGS.checkpoint_dir, FLAGS.algorithm)
+            ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
             print("Loading Model from {}".format(ckpt.model_checkpoint_path))
             self.saver.restore(sess, ckpt.model_checkpoint_path)
         else:

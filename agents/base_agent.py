@@ -12,6 +12,7 @@ class BaseAgent:
         self.sess = sess
         self.graph = sess.graph
         self.episode_buffer = deque()
+        self.nb_actions = nb_actions
         self.actions = np.zeros([nb_actions])
         self.env = game
 

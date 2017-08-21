@@ -9,6 +9,7 @@ from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
+
 FLAGS = tf.app.flags.FLAGS
 import random
 
@@ -54,16 +55,18 @@ class CategoricalDQNAgent(BaseAgent):
         done = rollout[:, 4]
 
         # Compute target distribution of Q(s_,a)
-        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations)
+        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations, actions)
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
                      self.q_net.actions: actions}
-        l, _, ms, img_summ = self.sess.run(
+        l, _, ms, img_summ, q, q_distrib = self.sess.run(
             [self.q_net.action_value_loss,
              self.q_net.train_op,
              self.q_net.merged_summary,
-             self.q_net.image_summaries],
+             self.q_net.image_summaries,
+             self.q_net.action_value,
+             self.q_net.action_values_soft],
             feed_dict=feed_dict)
 
         self.updateTarget()
@@ -117,11 +120,13 @@ class CategoricalDQNAgent(BaseAgent):
                     if len(self.episode_buffer) == FLAGS.memory_size:
                         self.episode_buffer.popleft()
 
-                    if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
+                    if self.total_steps > FLAGS.observation_steps and len(
+                            self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ = self.train()
                         train_stats = l, ms, img_summ
 
                     _t["step"].toc()
+
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
@@ -172,7 +177,8 @@ class CategoricalDQNAgent(BaseAgent):
             # self.summary.value.add(tag='Perf/Return_Mean', simple_value=float(mean_return))
             # self.summary.value.add(tag='Perf/Return_Max', simple_value=float(max_return))
             # self.summary.value.add(tag='Perf/Return_Min', simple_value=float(min_return))
-            self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
+            self.summary.value.add(tag='Perf/Probability_random_action',
+                                   simple_value=float(self.probability_of_random_action))
             self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
 
             self.write_summary(ms, img_summ)
@@ -180,19 +186,20 @@ class CategoricalDQNAgent(BaseAgent):
     def policy_evaluation(self, s):
         action_values_evaled = None
         self.probability_of_random_action = self.exploration.value(self.total_steps)
-        # if random.random() <= self.probability_of_random_action:
-        #     a = np.random.choice(range(len(self.env.gym_actions)))
-        # else:
-        feed_dict = {self.q_net.inputs: [s]}
-        action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
+        if random.random() <= self.probability_of_random_action:
+            a = np.random.choice(range(len(self.env.gym_actions)))
+        else:
+            feed_dict = {self.q_net.inputs: [s]}
+            action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
-        action_values_evaled = np.squeeze(np.matmul(action_values_evaled, np.expand_dims(self.support, 1)), 1)
-        a = np.argmax(action_values_evaled)
+            action_values_evaled = np.sum(
+                np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
+            a = np.argmax(action_values_evaled)
 
         return a, np.max(action_values_evaled)
 
 
-    def get_target_distribution(self, rewards, done, next_observations):
+    def get_target_distribution(self, rewards, done, next_observations, actions):
         target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
                                                      feed_dict={
                                                          self.target_net.inputs: np.stack(next_observations, axis=0)})
@@ -204,13 +211,15 @@ class CategoricalDQNAgent(BaseAgent):
         a = np.argmax(target_actionv_values_evaled_temp, axis=1)
 
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
+        # a_one_hot[:, a, :] = 1
         a_one_hot[np.arange(FLAGS.batch_size), a] = 1
         # a_one_hot = np.tile(np.expand_dims(a_one_hot, 2), [1, 1, FLAGS.nb_atoms])
         # a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
-        target_actionv_values_evaled_max = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
+        p_a_star = np.sum(np.multiply(p, a_one_hot), axis=1)
 
         rewards = np.tile(np.expand_dims(np.asarray(rewards, dtype=np.float32), 1), [1, FLAGS.nb_atoms])
-        gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1), [1, FLAGS.nb_atoms])
+        gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1),
+                        [1, FLAGS.nb_atoms])
         # Compute projection of the application of the Bellman operator.
         skewed_support = gamma * np.tile(np.expand_dims(self.support, 0), [FLAGS.batch_size, 1])
         bellman = rewards + skewed_support
@@ -223,18 +232,22 @@ class CategoricalDQNAgent(BaseAgent):
         u = np.asarray(np.ceil(b), dtype=np.int32)
 
         # Distribute probability
+        # for j in range(FLAGS.nb_atoms):
+        #     m[:, l[:, j]] += target_actionv_values_evaled_max[:, j] * (u[:, j] - b[:, j])
+        #     m[:, u[:, j]] += target_actionv_values_evaled_max[:, j] * (b[:, j] - l[:, j])
+
         for i in range(FLAGS.batch_size):
             for j in range(FLAGS.nb_atoms):
                 lidx = l[i][j]
                 uidx = u[i][j]
-                m[i, lidx] += target_actionv_values_evaled_max[i, j] * (uidx - b[i, j])
-                m[i, uidx] += target_actionv_values_evaled_max[i, j] * (b[i, j] - lidx)
+                m[i, lidx] += p_a_star[i, j] * (uidx - b[i, j])
+                m[i, uidx] += p_a_star[i, j] * (b[i, j] - lidx)
 
         import matplotlib.pyplot as plt
         ax = plt.subplot(111)
-        p1 = ax.step(self.support, target_actionv_values_evaled_max[0], color='blue')
-        p2 = ax.step(skewed_support[0], target_actionv_values_evaled_max[0], color='magenta')
-        p3 = ax.step(bellman[0], target_actionv_values_evaled_max[0], color='green')
+        p1 = ax.step(self.support, p_a_star[0], color='blue')
+        p2 = ax.step(skewed_support[0], p_a_star[0], color='magenta')
+        p3 = ax.step(bellman[0], p_a_star[0], color='green')
         p4 = ax.step(self.support, m[0], color='red')
         ax.autoscale(tight=True)
 
