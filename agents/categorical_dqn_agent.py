@@ -55,7 +55,7 @@ class CategoricalDQNAgent(BaseAgent):
         done = rollout[:, 4]
 
         # Compute target distribution of Q(s_,a)
-        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations, actions)
+        target_actionv_values_evaled_new = self.get_target_distribution(rewards, done, next_observations, observations, actions)
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
@@ -184,7 +184,7 @@ class CategoricalDQNAgent(BaseAgent):
             self.write_summary(ms, img_summ)
 
     def policy_evaluation(self, s):
-        action_values_evaled = None
+        action_values_q = None
         self.probability_of_random_action = self.exploration.value(self.total_steps)
         if random.random() <= self.probability_of_random_action:
             a = np.random.choice(range(len(self.env.gym_actions)))
@@ -192,30 +192,48 @@ class CategoricalDQNAgent(BaseAgent):
             feed_dict = {self.q_net.inputs: [s]}
             action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
 
-            action_values_evaled = np.sum(
+            action_values_q = np.sum(
                 np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
-            a = np.argmax(action_values_evaled)
+            a = np.argmax(action_values_q)
+            a_one_hot = np.zeros(shape=(self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
+            a_one_hot[a] = 1
+            p_a_star = np.sum(np.multiply(action_values_evaled, a_one_hot), 0)
 
-        return a, np.max(action_values_evaled)
+            # import matplotlib.pyplot as plt
+            # ax = plt.subplot(111)
+            # p1 = ax.step(self.support, p_a_star, color='blue')
+            # # p2 = ax.step(skewed_support[0], p_a_star[0], color='magenta')
+            # # p3 = ax.step(bellman[0], p_a_star[0], color='green')
+            # # p4 = ax.step(self.support, m[0], color='red')
+            # ax.autoscale(tight=True)
+            #
+            # plt.show()
+
+        return a, np.max(action_values_q)
 
 
-    def get_target_distribution(self, rewards, done, next_observations, actions):
-        target_actionv_values_evaled = self.sess.run(self.target_net.action_values_soft,
+    def get_target_distribution(self, rewards, done, next_observations, observations, actions):
+        target_actionv_values_evaled, action_values_evaled = self.sess.run([self.target_net.action_values_soft, self.q_net.action_values_soft],
                                                      feed_dict={
-                                                         self.target_net.inputs: np.stack(next_observations, axis=0)})
+                                                         self.target_net.inputs: np.stack(next_observations, axis=0),
+                                                         self.q_net.inputs: np.stack(observations, axis=0)
+                                                     })
+        a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
+        a_one_hot[np.arange(FLAGS.batch_size), np.asarray(actions, dtype=np.int32)] = 1
+        pt_a_star = np.sum(np.multiply(action_values_evaled, a_one_hot), axis=1)
 
-        target_actionv_values_evaled_temp = np.sum(
+        p = np.sum(
             target_actionv_values_evaled * np.tile(np.expand_dims(np.expand_dims(self.support, 0), 0),
                                                    [FLAGS.batch_size, self.q_net.nb_actions, 1]), 2)
 
-        a = np.argmax(target_actionv_values_evaled_temp, axis=1)
+        a = np.argmax(p, axis=1)
 
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
         # a_one_hot[:, a, :] = 1
         a_one_hot[np.arange(FLAGS.batch_size), a] = 1
         # a_one_hot = np.tile(np.expand_dims(a_one_hot, 2), [1, 1, FLAGS.nb_atoms])
         # a_one_hot = np.reshape(a_one_hot, (FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms))
-        p_a_star = np.sum(np.multiply(p, a_one_hot), axis=1)
+        p_a_star = np.sum(np.multiply(target_actionv_values_evaled, a_one_hot), axis=1)
 
         rewards = np.tile(np.expand_dims(np.asarray(rewards, dtype=np.float32), 1), [1, FLAGS.nb_atoms])
         gamma = np.tile(np.expand_dims(np.logical_not(np.asarray(done, dtype=np.int32)) * FLAGS.gamma, 1),
@@ -243,15 +261,17 @@ class CategoricalDQNAgent(BaseAgent):
                 m[i, lidx] += p_a_star[i, j] * (uidx - b[i, j])
                 m[i, uidx] += p_a_star[i, j] * (b[i, j] - lidx)
 
-        import matplotlib.pyplot as plt
-        ax = plt.subplot(111)
-        p1 = ax.step(self.support, p_a_star[0], color='blue')
-        p2 = ax.step(skewed_support[0], p_a_star[0], color='magenta')
-        p3 = ax.step(bellman[0], p_a_star[0], color='green')
-        p4 = ax.step(self.support, m[0], color='red')
-        ax.autoscale(tight=True)
-
-        plt.show()
+        # if self.total_steps > FLAGS.explore_steps:
+        #     import matplotlib.pyplot as plt
+        #     ax = plt.subplot(111)
+        #     # p1 = ax.step(self.support, p_a_star[0], color='blue')
+        #     # p2 = ax.step(skewed_support[0], p_a_star[0], color='magenta')
+        #     # p3 = ax.step(bellman[0], p_a_star[0], color='green')
+        #     # p4 = ax.step(self.support, m[0], color='red')
+        #     p4 = ax.step(self.support, pt_a_star[1], color='cyan')
+        #     ax.autoscale(tight=True)
+        #
+        #     plt.show()
         return m
 
 
