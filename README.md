@@ -38,12 +38,12 @@ You can edit this file or use  ```-algorithm="DQN"``` or ```-algorithm="Categori
        tenorboard --logdir=.
 
 ### TODO:
+- [ ] Add learning rate schedule
+- [ ] Add evaluation procedure
+- [ ] Better switch between agents
+- [ ] Add result plots
+- [ ] Atari
 
-Add learning rate schedule
-Add evaluation procedure
-Better switch between agents
-Add result plots
-Atari
 
 ### Training Results
 
