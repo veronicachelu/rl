@@ -42,7 +42,8 @@ You can edit this file or use  ```-algorithm="DQN"``` or ```-algorithm="Categori
 - [ ] Add evaluation procedure
 - [ ] Better switch between agents
 - [ ] Add result plots
-- [ ]Atari
+- [ ] Atari
+
 
 ### Training Results
 
