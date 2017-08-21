@@ -12,7 +12,7 @@ tf.app.flags.DEFINE_boolean('show_training', True,
                             """Show windows with workers training""")
 tf.app.flags.DEFINE_integer('summary_interval', 1000, """Number of episodes of interval between summary saves""")
 tf.app.flags.DEFINE_integer('checkpoint_interval', 1000, """Number of episodes of interval between checkpoint saves""")
-tf.app.flags.DEFINE_integer('agent_history_length', 2, """Number of frames that makes every state""")
+tf.app.flags.DEFINE_integer('agent_history_length', 4, """Number of frames that makes every state""")
 tf.app.flags.DEFINE_integer('resized_width', 24, """Resized width of each frame""")
 tf.app.flags.DEFINE_integer('resized_height', 24, """Resized height of each frame""")
 tf.app.flags.DEFINE_float('gamma', 0.99, """Gamma value""")
