@@ -20,7 +20,7 @@ class CategoricalDQNetwork:
 
             self.image_summaries = []
             self.image_summaries.append(
-                tf.summary.image('input', self.inputs, max_outputs=FLAGS.batch_size))
+                tf.summary.image('input', tf.expand_dims(self.inputs[:, :, :, 0], 3), max_outputs=FLAGS.batch_size))
 
             out = self.inputs
             self.nb_actions = nb_actions

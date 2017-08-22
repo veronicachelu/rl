@@ -14,3 +14,4 @@ tf.app.flags.DEFINE_boolean('resume', False,
 tf.app.flags.DEFINE_boolean('train', True,
                             """Whether to train or test""")
 tf.app.flags.DEFINE_float('TAO', 0.001, """""")
+tf.app.flags.DEFINE_integer('test_episodes', 150, """""")

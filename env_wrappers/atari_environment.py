@@ -33,7 +33,8 @@ class AtariEnvironment(object):
             s_t = np.expand_dims(x_t, 2)
         else:
             self.state_buffer = deque()
-            s_t = np.stack((x_t, x_t, x_t, x_t), axis=2)
+            temp_aux = (x_t for _ in range(self.agent_history_length))
+            s_t = np.stack(temp_aux, axis=2)
 
             for i in range(self.agent_history_length - 1):
                 self.state_buffer.append(x_t)

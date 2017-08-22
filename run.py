@@ -50,7 +50,11 @@ def run():
         print("Please specify a valid algorithm name")
         exit(0)
 
-    alg.train()
+    if FLAGS.train:
+        alg.train()
+    else:
+        alg.eval()
+
 
 if __name__ == '__main__':
     run()

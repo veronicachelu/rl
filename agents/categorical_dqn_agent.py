@@ -69,13 +69,41 @@ class CategoricalDQNAgent(BaseAgent):
              self.q_net.action_values_soft],
             feed_dict=feed_dict)
 
-        self.updateTarget()
+        # self.updateTarget()
 
         return l / len(rollout), ms, img_summ
 
     def updateTarget(self):
         for op in self.targetOps:
             self.sess.run(op)
+
+    def eval(self, saver):
+        self.saver = saver
+        total_steps = 0
+        episode_rewards = []
+
+        print("Starting eval agent")
+        with self.sess.as_default(), self.graph.as_default():
+            while total_steps < FLAGS.test_episodes:
+                episode_reward = 0
+                episode_step_count = 0
+                d = False
+                s = self.env.get_initial_state()
+
+                while not d:
+                    a = self.policy_evaluation_eval(s)
+
+                    s1, r, d, info = self.env.step(a)
+
+                    r = np.clip(r, -1, 1)
+                    episode_reward += r
+                    episode_step_count += 1
+
+                    s = s1
+                print("Episode reward was {}".format(episode_reward))
+                episode_rewards.append(episode_reward)
+                total_steps += 1
+        print("Mean reward is {}".format(np.mean(np.asarray(episode_rewards))))
 
     def play(self, saver):
         self.saver = saver
@@ -186,6 +214,7 @@ class CategoricalDQNAgent(BaseAgent):
     def policy_evaluation(self, s):
         action_values_q = None
         self.probability_of_random_action = self.exploration.value(self.total_steps)
+
         if random.random() <= self.probability_of_random_action:
             a = np.random.choice(range(len(self.env.gym_actions)))
         else:
@@ -210,6 +239,29 @@ class CategoricalDQNAgent(BaseAgent):
             # plt.show()
 
         return a, np.max(action_values_q)
+
+    def policy_evaluation_eval(self, s):
+        feed_dict = {self.q_net.inputs: [s]}
+        action_values_evaled = self.sess.run(self.q_net.action_values_soft, feed_dict=feed_dict)[0]
+
+        action_values_q = np.sum(
+            np.multiply(action_values_evaled, np.tile(np.expand_dims(self.support, 0), [self.nb_actions, 1])), 1)
+        a = np.argmax(action_values_q)
+        a_one_hot = np.zeros(shape=(self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
+        a_one_hot[a] = 1
+        p_a_star = np.sum(np.multiply(action_values_evaled, a_one_hot), 0)
+
+        # import matplotlib.pyplot as plt
+        # ax = plt.subplot(111)
+        # p1 = ax.step(self.support, p_a_star, color='blue')
+        # # p2 = ax.step(skewed_support[0], p_a_star[0], color='magenta')
+        # # p3 = ax.step(bellman[0], p_a_star[0], color='green')
+        # # p4 = ax.step(self.support, m[0], color='red')
+        # ax.autoscale(tight=True)
+        #
+        # plt.show()
+
+        return a
 
 
     def get_target_distribution(self, rewards, done, next_observations, observations, actions):
