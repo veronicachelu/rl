@@ -50,11 +50,11 @@ class CategoricalDQNetwork:
                                                    activation_fn=None,
                                                    variables_collections=tf.get_collection("variables"),
                                                    outputs_collections="activations", scope="action_values")
-                self.action_values = tf.reshape(value_out, [-1, self.nb_actions, FLAGS.nb_atoms])
+                self.action_values = tf.reshape(value_out, [-1, self.nb_actions, FLAGS.nb_atoms], name="P_logit")
                 # value_out = tf.transpose(value_out, [2, 0, 1])
                 # value_out = tf.map_fn(lambda v: tf.nn.softmax(v), value_out)
                 value_out = tf.split(self.action_values, num_or_size_splits=self.nb_actions, axis=1)
-                self.action_values_soft = tf.concat(list(map(lambda v: tf.nn.softmax(v, name="action_value_soft"), value_out)), 1)
+                self.action_values_soft = tf.concat(list(map(lambda v: tf.nn.softmax(v, name="action_value_soft"), value_out)), 1, name="P_soft")
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")
@@ -64,7 +64,7 @@ class CategoricalDQNetwork:
                 self.actions_onehot = tf.tile(tf.expand_dims(self.actions_onehot, 2), [1, 1, FLAGS.nb_atoms])
                 # self.actions_onehot = tf.reshape(self.actions_onehot, [-1, self.nb_actions, FLAGS.nb_atoms])
                 self.action_value = tf.reduce_sum(tf.multiply(self.action_values, self.actions_onehot),
-                                                  reduction_indices=1, name="Q")
+                                                  reduction_indices=1, name="P_a")
                 # Loss functions
                 self.action_value_loss = -tf.reduce_sum(tf.multiply(self.target_q, tf.nn.log_softmax(self.action_value)))
 

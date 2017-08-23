@@ -27,19 +27,19 @@ class DQNetwork:
             with tf.variable_scope("convnet"):
                 out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
                                       variables_collections=tf.get_collection("variables"),
-                                      outputs_collections="activations", scope="conv1")
+                                      outputs_collections="activations")
 
                 out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
                                       padding="VALID",
                                       variables_collections=tf.get_collection("variables"),
-                                      outputs_collections="activations", scope="conv2")
+                                      outputs_collections="activations")
             conv_out = layers.flatten(out)
 
             with tf.variable_scope("action_value"):
                 value_out = layers.fully_connected(conv_out, num_outputs=FLAGS.hidden_size,
                                                    activation_fn=None,
                                                    variables_collections=tf.get_collection("variables"),
-                                                   outputs_collections="activations", scope="fc")
+                                                   outputs_collections="activations")
                 if FLAGS.layer_norm:
                     value_out = layer_norm_fn(value_out, relu=True)
                 else:
@@ -47,7 +47,7 @@ class DQNetwork:
                 self.action_values = value_out = layers.fully_connected(value_out, num_outputs=nb_actions,
                                                    activation_fn=None,
                                                    variables_collections=tf.get_collection("variables"),
-                                                   outputs_collections="activations", scope="action_values")
+                                                   outputs_collections="activations")
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")

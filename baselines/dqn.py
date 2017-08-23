@@ -23,8 +23,8 @@ class DQN:
             global_step = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
 
             self.env = gym_env = gym.make(FLAGS.game)
-            if FLAGS.seed and FLAGS.seed != -1:
-                gym_env.seed(FLAGS.seed)
+            if FLAGS.gym_seed and FLAGS.gym_seed != -1:
+                gym_env.seed(FLAGS.gym_seed)
 
             if FLAGS.monitor:
                 gym_env = gym.wrappers.Monitor(gym_env, FLAGS.experiments_dir)

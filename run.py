@@ -2,6 +2,7 @@ import tensorflow as tf
 from configs import base_flags
 
 import os
+import numpy as np
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -36,6 +37,7 @@ def recreate_directory_structure():
 
 def run():
     recreate_directory_structure()
+    np.random.seed(FLAGS.seed)
     tf.reset_default_graph()
 
     if FLAGS.algorithm == "DQN":

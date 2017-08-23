@@ -59,12 +59,13 @@ class CategoricalDQNAgent(BaseAgent):
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
                      self.q_net.inputs: np.stack(observations, axis=0),
                      self.q_net.actions: actions}
-        l, _, ms, img_summ, q, q_distrib = self.sess.run(
+        l, _, ms, img_summ, q, actions_one_hot, q_distrib = self.sess.run(
             [self.q_net.action_value_loss,
              self.q_net.train_op,
              self.q_net.merged_summary,
              self.q_net.image_summaries,
              self.q_net.action_value,
+             self.q_net.actions_onehot,
              self.q_net.action_values_soft],
             feed_dict=feed_dict)
 
@@ -157,6 +158,9 @@ class CategoricalDQNAgent(BaseAgent):
 
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
+
+                if self.total_steps % FLAGS.eval_interval == 0:
+                    self.evaluate_episode()
 
                 self.sess.run(self.increment_global_episode)
 
@@ -274,11 +278,11 @@ class CategoricalDQNAgent(BaseAgent):
         a_one_hot[np.arange(FLAGS.batch_size), np.asarray(actions, dtype=np.int32)] = 1
         pt_a_star = np.sum(np.multiply(action_values_evaled, a_one_hot), axis=1)
 
-        p = np.sum(
+        q = np.sum(
             target_actionv_values_evaled * np.tile(np.expand_dims(np.expand_dims(self.support, 0), 0),
                                                    [FLAGS.batch_size, self.q_net.nb_actions, 1]), 2)
 
-        a = np.argmax(p, axis=1)
+        a = np.argmax(q, axis=1)
 
         a_one_hot = np.zeros(shape=(FLAGS.batch_size, self.q_net.nb_actions, FLAGS.nb_atoms), dtype=np.int32)
         # a_one_hot[:, a, :] = 1
@@ -308,10 +312,10 @@ class CategoricalDQNAgent(BaseAgent):
 
         for i in range(FLAGS.batch_size):
             for j in range(FLAGS.nb_atoms):
-                lidx = l[i][j]
                 uidx = u[i][j]
-                m[i, lidx] += p_a_star[i, j] * (uidx - b[i, j])
-                m[i, uidx] += p_a_star[i, j] * (b[i, j] - lidx)
+                lidx = l[i][j]
+                m[i][lidx] = m[i][lidx] + p_a_star[i][j] * (uidx - b[i][j])
+                m[i][uidx] = m[i][uidx] + p_a_star[i][j] * (b[i][j] - lidx)
 
         # if self.total_steps > FLAGS.explore_steps:
         #     import matplotlib.pyplot as plt
@@ -325,6 +329,24 @@ class CategoricalDQNAgent(BaseAgent):
         #
         #     plt.show()
         return m
+
+    def evaluate_episode(self):
+        episode_reward = 0
+        episode_step_count = 0
+        d = False
+        s = self.env.get_initial_state()
+
+        while not d:
+            a = self.policy_evaluation_eval(s)
+
+            s1, r, d, info = self.env.step(a)
+
+            r = np.clip(r, -1, 1)
+            episode_reward += r
+            episode_step_count += 1
+
+            s = s1
+        print("Episode reward was {}".format(episode_reward))
 
 
 
