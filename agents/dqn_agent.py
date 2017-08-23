@@ -82,6 +82,34 @@ class DQNAgent(BaseAgent):
         for op in self.targetOps:
             self.sess.run(op)
 
+    def eval(self, saver):
+        self.saver = saver
+        total_steps = 0
+        episode_rewards = []
+
+        print("Starting eval agent")
+        with self.sess.as_default(), self.graph.as_default():
+            while total_steps < FLAGS.test_episodes:
+                episode_reward = 0
+                episode_step_count = 0
+                d = False
+                s = self.env.get_initial_state()
+
+                while not d:
+                    a = self.policy_evaluation_eval(s)
+
+                    s1, r, d, info = self.env.step(a)
+
+                    r = np.clip(r, -1, 1)
+                    episode_reward += r
+                    episode_step_count += 1
+
+                    s = s1
+                print("Episode reward was {}".format(episode_reward))
+                episode_rewards.append(episode_reward)
+                total_steps += 1
+        print("Mean reward is {}".format(np.mean(np.asarray(episode_rewards))))
+
     def play(self, saver):
         self.saver = saver
         train_stats = None
@@ -126,7 +154,8 @@ class DQNAgent(BaseAgent):
                     if len(self.episode_buffer) == FLAGS.memory_size:
                         self.episode_buffer.popleft()
 
-                    if self.total_steps > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
+                    if self.total_steps > FLAGS.observation_steps and len(
+                            self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
                         l, ms, img_summ, returns = self.train()
                         train_stats = l, ms, img_summ, returns
 
@@ -202,3 +231,11 @@ class DQNAgent(BaseAgent):
             a = np.argmax(action_values_evaled)
 
         return a, np.max(action_values_evaled)
+
+    def policy_evaluation_eval(self, s):
+        feed_dict = {self.q_net.inputs: [s]}
+        action_values_evaled = self.sess.run(self.q_net.action_values, feed_dict=feed_dict)[0]
+
+        a = np.argmax(action_values_evaled)
+
+        return a

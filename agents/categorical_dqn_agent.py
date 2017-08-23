@@ -9,11 +9,10 @@ from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
-
 FLAGS = tf.app.flags.FLAGS
 import random
 
-# Starting threadsv
+# Starting threads
 main_lock = Lock()
 
 
@@ -113,6 +112,7 @@ class CategoricalDQNAgent(BaseAgent):
         self.total_steps = self.sess.run(self.global_episode)
         if self.total_steps == 0:
             self.updateTarget()
+
 
         print("Starting agent")
         _t = {'episode': Timer(), "step": Timer()}
