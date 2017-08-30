@@ -37,7 +37,7 @@ def recreate_directory_structure():
 
 def run():
     recreate_directory_structure()
-    np.random.seed(FLAGS.seed)
+    np.random.seed(99)
     tf.reset_default_graph()
 
     if FLAGS.algorithm == "DQN":

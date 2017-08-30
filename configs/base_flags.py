@@ -16,4 +16,4 @@ tf.app.flags.DEFINE_boolean('train', True,
 tf.app.flags.DEFINE_float('TAO', 0.001, """""")
 tf.app.flags.DEFINE_integer('test_episodes', 150, """""")
 tf.app.flags.DEFINE_integer('eval_interval', 1200, """""")
-tf.app.flags.DEFINE_integer('seed', 23, """Seed value for numpy""")
+# tf.app.flags.DEFINE_integer('seed', 99, """Seed value for numpy""")
