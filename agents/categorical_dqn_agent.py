@@ -161,6 +161,11 @@ class CategoricalDQNAgent(BaseAgent):
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
+                if self.total_steps % FLAGS.eval_interval == 0:
+                    self.evaluate_episode()
+
+                # self.sess.run(self.increment_global_episode)
+
                 _t["episode"].toc()
 
         print('Avg time per step is {:.3f}'.format(_t["step"].average_time()))
@@ -310,10 +315,10 @@ class CategoricalDQNAgent(BaseAgent):
 
         for i in range(FLAGS.batch_size):
             for j in range(FLAGS.nb_atoms):
-                lidx = l[i][j]
                 uidx = u[i][j]
-                m[i, lidx] += p_a_star[i, j] * (uidx - b[i, j])
-                m[i, uidx] += p_a_star[i, j] * (b[i, j] - lidx)
+                lidx = l[i][j]
+                m[i][lidx] = m[i][lidx] + p_a_star[i][j] * (uidx - b[i][j])
+                m[i][uidx] = m[i][uidx] + p_a_star[i][j] * (b[i][j] - lidx)
 
         # if self.total_steps > FLAGS.explore_steps:
         #     import matplotlib.pyplot as plt
@@ -327,6 +332,24 @@ class CategoricalDQNAgent(BaseAgent):
         #
         #     plt.show()
         return m
+
+    def evaluate_episode(self):
+        episode_reward = 0
+        episode_step_count = 0
+        d = False
+        s = self.env.get_initial_state()
+
+        while not d:
+            a = self.policy_evaluation_eval(s)
+
+            s1, r, d, info = self.env.step(a)
+
+            r = np.clip(r, -1, 1)
+            episode_reward += r
+            episode_step_count += 1
+
+            s = s1
+        print("Episode reward was {}".format(episode_reward))
 
 
 
