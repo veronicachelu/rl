@@ -18,7 +18,7 @@ tf.app.flags.DEFINE_integer('resized_height', 24, """Resized height of each fram
 tf.app.flags.DEFINE_float('gamma', 0.99, """Gamma value""")
 tf.app.flags.DEFINE_float('lr', 0.000635, """Learning rate""")
 tf.app.flags.DEFINE_string('optimizer', "Adam", """The type of optimizer to use""")
-tf.app.flags.DEFINE_integer('seed', 23, """Seed value for the gym env""")
+tf.app.flags.DEFINE_integer('gym_seed', 23, """Seed value for the gym env""")
 tf.app.flags.DEFINE_integer('hidden_size', 128, """Hidden_size of FC layer""")
 tf.app.flags.DEFINE_integer('batch_size', 96, """The size of the batch""")
 tf.app.flags.DEFINE_integer('update_freq', 4, """Frequency of training updates""")
