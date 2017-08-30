@@ -45,6 +45,8 @@ class CategoricalDQN:
         else:
             sess.run(tf.global_variables_initializer())
 
+        sess.run(tf.local_variables_initializer())
+
     def eval(self):
         self.agent.eval(self.saver)
 

@@ -115,7 +115,7 @@ class DQNAgent(BaseAgent):
         train_stats = None
 
         # self.episode_count = self.sess.run(self.global_episode)
-        self.total_steps = self.sess.run(self.global_episode)
+        self.total_steps = self.sess.run(self.global_step)
         if self.total_steps == 0:
             self.updateTarget()
 
@@ -161,10 +161,11 @@ class DQNAgent(BaseAgent):
 
                     _t["step"].toc()
 
+                    self.sess.run(self.increment_global_step)
+
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
-                self.sess.run(self.increment_global_episode)
 
                 _t["episode"].toc()
 

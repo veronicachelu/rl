@@ -7,8 +7,8 @@ FLAGS = tf.app.flags.FLAGS
 
 class BaseAgent:
     def __init__(self, game, sess, nb_actions, global_step):
-        self.global_episode = global_step
-        self.increment_global_episode = self.global_episode.assign_add(1)
+        self.global_step = global_step
+        self.increment_global_step = self.global_step.assign_add(1)
         self.sess = sess
         self.graph = sess.graph
         self.episode_buffer = deque()
@@ -37,7 +37,7 @@ class BaseAgent:
 
     def save_model(self, saver, episode_count):
         saver.save(self.sess, self.model_path + '/model-' + str(episode_count) + '.cptk',
-                   global_step=self.global_episode)
+                   global_step=self.global_step)
 
         print("Saved Model at {}".format(self.model_path + '/model-' + str(episode_count) + '.cptk'))
 
