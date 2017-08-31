@@ -50,7 +50,7 @@ You can edit this file or use  ```-algorithm="DQN"``` or ```-algorithm="Categori
 
 
 ### Training Results
-![Alt text](https://github.com/ioanachelu/rl/results/cagetorical.png?raw=true "Categorical agent training")
-![Alt text](https://github.com/ioanachelu/rl/results/dqn.png?raw=true "DQN agent training")
+![Alt text](https://github.com/ioanachelu/rl/blob/master/results/categorical.png?raw=true "Categorical agent training")
+![Alt text](https://github.com/ioanachelu/rl/blob/master/results/dqn.png?raw=true "DQN agent training")
 
 
