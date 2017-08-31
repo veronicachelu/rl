@@ -33,18 +33,24 @@ You can edit this file or use  ```-algorithm="DQN"``` or ```-algorithm="Categori
         
         python run.py --resume=True
         
+* To eval use:
+        
+        python run.py --resume=False
+        
 * To see training progress run tensorboard from the ```summaries/CategoricalDQN``` or ```summaries/DQN``` directory:
        
        tenorboard --logdir=.
 
 ### TODO:
 - [ ] Add learning rate schedule
-- [ ] Add evaluation procedure
+- [X] Add evaluation procedure
 - [ ] Better switch between agents
-- [ ] Add result plots
+- [X] Add result plots
 - [ ] Atari
 
 
 ### Training Results
+![Alt text](https://github.com/ioanachelu/rl/results/cagetorical.png?raw=true "Categorical agent training")
+![Alt text](https://github.com/ioanachelu/rl/results/dqn.png?raw=true "DQN agent training")
 
 
