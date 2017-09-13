@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-tf.app.flags.DEFINE_string('algorithm', 'CategoricalDQN',
+tf.app.flags.DEFINE_string('algorithm', 'SuccessorFeatures',
 #tf.app.flags.DEFINE_string('algorithm', 'DQN',
                            """Algorithm name to train or test expriments""")
 tf.app.flags.DEFINE_string('checkpoint_dir', './models',

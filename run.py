@@ -48,6 +48,10 @@ def run():
         from configs import categorical_dqn_flags
         from baselines.categorical_dqn import CategoricalDQN
         alg = CategoricalDQN()
+    elif FLAGS.algorithm == "SuccessorFeatures":
+        from configs import sf_flags
+        from baselines.sf import SF
+        alg = SF()
     else:
         print("Please specify a valid algorithm name")
         exit(0)

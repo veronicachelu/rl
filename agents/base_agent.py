@@ -41,7 +41,7 @@ class BaseAgent:
 
         print("Saved Model at {}".format(self.model_path + '/model-' + str(episode_count) + '.cptk'))
 
-    def write_summary(self, ms, img_summ):
+    def write_summary(self, ms, img_summ=None):
         summaries = tf.Summary().FromString(ms)
         sub_summaries_dict = {}
         for value in summaries.value:
@@ -71,7 +71,8 @@ class BaseAgent:
             else:
                 print(
                     'Warning: could not aggregate summary of type {}'.format(value_ifo['value_field']))
-        for s in img_summ:
-            self.summary_writer.add_summary(s, self.total_steps)
+        if img_summ is not None:
+            for s in img_summ:
+                self.summary_writer.add_summary(s, self.total_steps)
         self.summary_writer.add_summary(self.summary, self.total_steps)
         self.summary_writer.flush()

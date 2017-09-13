@@ -130,6 +130,7 @@ class DQNAgent(BaseAgent):
                 episode_reward = 0
                 episode_step_count = 0
                 q_values = []
+
                 d = False
                 # self.probability_of_random_action = self.exploration.value(self.total_steps)
                 s = self.env.get_initial_state()
