@@ -2,10 +2,11 @@ import tensorflow as tf
 
 tf.app.flags.DEFINE_integer('summary_interval', 1000, """Number of episodes of interval between summary saves""")
 tf.app.flags.DEFINE_integer('checkpoint_interval', 1000, """Number of episodes of interval between checkpoint saves""")
-tf.app.flags.DEFINE_integer('max_total_steps', 1000, """""")
-tf.app.flags.DEFINE_string('mdp_path', '/Users/ioanaveronicachelu/RL/curiosity_options/mdps/toy.mdp',
+tf.app.flags.DEFINE_integer('max_total_steps', 1000000, """""")
+tf.app.flags.DEFINE_string('mdp_path', './mdps/toy.mdp',
                            """Directory from where to load the environment geometry""")
-tf.app.flags.DEFINE_integer('nb_steps_sf', 20000, """Number of steps to run fitted successor features learning""")
+tf.app.flags.DEFINE_integer('nb_steps_sf', 100000, """Number of steps to run fitted successor features learning""")
+tf.app.flags.DEFINE_integer('sf_memory_size', 10000, """Number of steps to run fitted successor features learning""")
 tf.app.flags.DEFINE_float('gamma', 0.99, """Gamma value""")
 tf.app.flags.DEFINE_float('lr', 0.01, """Learning rate value""")
 tf.app.flags.DEFINE_integer('batch_size', 96, """The size of the batch""")
@@ -14,3 +15,9 @@ tf.app.flags.DEFINE_integer('target_update_freq', 24, """Frequency of target upd
 tf.app.flags.DEFINE_integer('memory_size', 100000, """The size of the memory""")
 tf.app.flags.DEFINE_integer('explore_steps', 100000, """Number of steps to use for epsilon decay, for exploration""")
 tf.app.flags.DEFINE_integer('observation_steps', 96, """Number of steps to use for epsilon decay, for exploration""")
+tf.app.flags.DEFINE_float('initial_random_action_prob', 1.0, """Initial probability for epsilon greedy exploration""")
+tf.app.flags.DEFINE_float('final_random_action_prob', 0.05, """Final probability for epsilon greedy exploration""")
+tf.app.flags.DEFINE_string('optimizer', "Adam", """The type of optimizer to use""")
+tf.app.flags.DEFINE_integer('gradient_norm_clipping', 10, """Value to clip the gradient norm""")
+
+tf.app.flags.FLAGS._parse_flags()
