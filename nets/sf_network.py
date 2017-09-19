@@ -53,7 +53,7 @@ class SFNetwork:
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
                 # gradients, self.train_op = minimize_and_clip(optimizer, self.sf_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
-                gradients, self.train_op = minimize(optimizer, self.sf_loss, tf.trainable_variables())
+                gradients, self.train_op = minimize(optimizer, self.total_loss, tf.trainable_variables())
                 self.summaries = []
                 # self.summaries.append(
                 #     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))

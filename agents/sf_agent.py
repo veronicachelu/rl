@@ -120,7 +120,7 @@ class SFAgent(BaseAgent):
         self.total_steps = self.sess.run(self.global_step)
         if self.total_steps == 0:
             self.updateTarget()
-
+        self.nb_episodes = 0
         episode_reward = 0
         episode_step_count = 0
         q_values = []
@@ -129,7 +129,7 @@ class SFAgent(BaseAgent):
         with self.sess.as_default(), self.graph.as_default():
             while self.total_steps < FLAGS.max_total_steps:
 
-                if self.total_steps == 0 or d:
+                if self.total_steps == 0 or d or episode_step_count % 30 == 0:
                     _t["episode"].tic()
                     if self.total_steps % FLAGS.target_update_freq == 0:
                         self.updateTarget()
@@ -137,7 +137,8 @@ class SFAgent(BaseAgent):
                     episode_reward = 0
                     episode_step_count = 0
                     q_values = []
-
+                    if self.total_steps != 0:
+                        self.nb_episodes += 1
                     d = False
                     # self.probability_of_random_action = self.exploration.value(self.total_steps)
                     s = self.env.get_initial_state()
@@ -151,7 +152,7 @@ class SFAgent(BaseAgent):
                     q_values.append(max_action_values_evaled)
 
                 s1, r, d = self.env.step(a)
-                # self.env.render()
+                self.env.render()
 
                 r = np.clip(r, -1, 1)
                 episode_reward += r
@@ -180,9 +181,6 @@ class SFAgent(BaseAgent):
                 _t["step"].toc()
 
                 self.sess.run(self.increment_global_step)
-
-
-
 
 
             _t["episode"].toc()
@@ -220,8 +218,8 @@ class SFAgent(BaseAgent):
             self.episode_max_values.append(np.max(np.asarray(q_values)))
             self.episode_min_values.append(np.min(np.asarray(q_values)))
 
-        if self.total_steps % FLAGS.summary_interval == 0 and self.total_steps != 0 and self.total_steps > FLAGS.observation_steps:
-            if self.total_steps % FLAGS.checkpoint_interval == 0:
+        if self.nb_episodes % FLAGS.summary_interval == 0 and self.nb_episodes != 0 and self.total_steps > FLAGS.observation_steps:
+            if self.nb_episodes % FLAGS.checkpoint_interval == 0:
                 self.save_model(self.saver, self.total_steps)
 
             sf_l, r_l, t_l, ms = train_stats

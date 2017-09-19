@@ -44,6 +44,4 @@ class SF:
     def train(self):
         self.agent.play(self.saver)
 
-        while True:
-            if FLAGS.show_training:
-                self.env.render()
+
