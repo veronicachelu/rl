@@ -19,5 +19,7 @@ tf.app.flags.DEFINE_float('initial_random_action_prob', 1.0, """Initial probabil
 tf.app.flags.DEFINE_float('final_random_action_prob', 0.05, """Final probability for epsilon greedy exploration""")
 tf.app.flags.DEFINE_string('optimizer', "Adam", """The type of optimizer to use""")
 tf.app.flags.DEFINE_integer('gradient_norm_clipping', 10, """Value to clip the gradient norm""")
+tf.app.flags.DEFINE_string('task', "discover", """The task to perform""")
+
 
 tf.app.flags.FLAGS._parse_flags()
