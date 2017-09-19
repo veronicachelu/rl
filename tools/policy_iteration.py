@@ -9,7 +9,7 @@ import math
 import numpy as np
 
 
-class Learning:
+class PolicyIteration:
     V = None
     pi = None
     gamma = 0.9
@@ -21,15 +21,15 @@ class Learning:
         '''Initialize variables that are useful everywhere.'''
         self.gamma = gamma
         self.environment = env
-        self.numStates = env.nb_states + 1
+        self.nb_states = env.nb_states + 1
 
         self.V = np.zeros(self.nb_states + 1)
         self.pi = np.zeros(self.nb_states + 1, dtype=np.int)
 
         if augmentActionSet:
-            self.actionSet = np.append(env.getActionSet(), ['terminate'])
+            self.actionSet = np.append(env.get_action_set(), [4])
         else:
-            self.actionSet = env.getActionSet()
+            self.actionSet = env.get_action_set()
 
     def _evalPolicy(self):
         ''' Policy evaluation step.'''

@@ -9,9 +9,10 @@ from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
+from tools.policy_iteration import PolicyIteration
 FLAGS = tf.app.flags.FLAGS
 import random
-from visuals.visualizer import Visualizer
+from utils.visualizer import Visualizer
 
 # Starting threads
 main_lock = Lock()
@@ -23,7 +24,8 @@ class SFAgent(BaseAgent):
         self.model_path = os.path.join(FLAGS.checkpoint_dir, FLAGS.algorithm)
 
         self.nb_states = self.env.nb_states
-        self.sf_buffer = deque()
+        self.sf_buffer = np.zeros([25, 25])
+        self.seen_states = set()
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
@@ -57,28 +59,28 @@ class SFAgent(BaseAgent):
 
         target_sf_evaled = self.sess.run(self.target_net.sf,
                                                      feed_dict={self.target_net.features: state_features[next_observations]})
-        target_sf_evaled_exp = np.mean(target_sf_evaled, axis=1)
+        # target_sf_evaled_exp = np.mean(target_sf_evaled, axis=1)
 
-        gamma = np.tile(np.expand_dims(np.asarray(np.logical_not(done), dtype=np.int32) * FLAGS.gamma, 1),
-                        [1, self.nb_states])
-
-        target_sf_evaled_new = state_features[next_observations] + gamma * target_sf_evaled_exp
-
-        feed_dict = {self.q_net.target_sf: target_sf_evaled_new,
-                     self.q_net.target_reward: np.stack(rewards, axis=0),
-                     self.q_net.features: state_features[observations],
-                     self.q_net.actions: actions}
-        sf_l, r_l, t_l, _, ms = self.sess.run(
+        # gamma = np.tile(np.expand_dims(np.asarray(np.logical_not(done), dtype=np.int32) * FLAGS.gamma, 1),
+        #                 [1, self.nb_states])
+        #
+        # target_sf_evaled_new = state_features[next_observations] + gamma * target_sf_evaled_exp
+        #
+        feed_dict = {self.q_net.target_sf: target_sf_evaled,
+                     # self.q_net.target_reward: np.stack(rewards, axis=0),
+                     self.q_net.features: state_features[observations]}
+                     # self.q_net.actions: actions}
+        sf_l, _, ms = self.sess.run(
             [self.q_net.sf_loss,
-             self.q_net.reward_loss,
-             self.q_net.total_loss,
+             # self.q_net.reward_loss,
+             # self.q_net.total_loss,
              self.q_net.train_op,
              self.q_net.merged_summary],
             feed_dict=feed_dict)
 
         # self.updateTarget()
 
-        return sf_l / len(rollout), r_l / len(rollout), t_l / len(rollout), ms
+        return sf_l / len(rollout), ms
 
     def updateTarget(self):
         for op in self.targetOps:
@@ -153,7 +155,7 @@ class SFAgent(BaseAgent):
                     q_values.append(max_action_values_evaled)
 
                 s1, r, d = self.env.step(a)
-                self.env.render()
+                # self.env.render()
 
                 r = np.clip(r, -1, 1)
                 episode_reward += r
@@ -167,16 +169,17 @@ class SFAgent(BaseAgent):
                     self.episode_buffer.popleft()
 
                 if self.total_steps > FLAGS.observation_steps and len(
-                        self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0 and FLAGS.task != "discover":
-                    sf_l, r_l, t_l, ms = self.train()
-                    train_stats = sf_l, r_l, t_l, ms
+                        self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:# and FLAGS.task != "discover":
+                    sf_l, ms = self.train()
+                    train_stats = sf_l, ms
 
-                if len(self.sf_buffer) == FLAGS.sf_memory_size:
+                if len(self.seen_states) == self.nb_states:
                     s, v = self.discover_options()
-                    self.sf_buffer.popleft()
+                    # self.sf_buffer.popleft()
 
                 if self.total_steps > FLAGS.nb_steps_sf:
-                    self.add_successive_feature(s, a)
+                    self.construct_successive_matrix()
+                    # self.add_successive_feature(s, a)
 
 
                 _t["step"].toc()
@@ -191,6 +194,18 @@ class SFAgent(BaseAgent):
         # fps = self.total_steps / _t['Total'].duration
         # print('Average time per episod is {}'.format(_t['episode'].average_time))
 
+    def construct_successive_matrix(self):
+        for s in range(self.nb_states):
+            state_features = np.identity(self.nb_states)
+            sf_feat = self.sess.run(self.q_net.sf,
+                                    feed_dict={self.q_net.features: state_features[s:s + 1]})
+            a = np.random.choice(range(self.nb_actions))
+            a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
+            a_one_hot[0, a] = 1
+            sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
+            self.sf_buffer[s] = sf_feat_a
+            if s not in self.seen_states:
+                self.seen_states.add(s)
 
     def add_successive_feature(self, s, a):
         state_features = np.identity(self.nb_states)
@@ -199,19 +214,53 @@ class SFAgent(BaseAgent):
         a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
         a_one_hot[0, a] = 1
         sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
-        self.sf_buffer.append(sf_feat_a)
+        if s not in self.seen_states:
+            self.seen_states.add(s)
+        self.sf_buffer[s] = sf_feat_a
 
     def discover_options(self):
         sf_matrix = tf.convert_to_tensor(np.squeeze(np.array(self.sf_buffer)), dtype=tf.float32)
         s, u, v = tf.svd(sf_matrix)
+
         # discard noise, get first 10
-        s = s[:10]
-        v = v[:10]
+        # s = s[:10]
+        # v = v[:10]
 
         if FLAGS.task == "discover":
             # Plotting all the basis
             plot = Visualizer(self.env)
-            plot.plotBasisFunctions(s, v)
+            s_evaled , v_evaled = self.sess.run([s, v])
+            idx = s_evaled.argsort()[::-1]
+            s_evaled = s_evaled[idx]
+            v_evaled = v_evaled[:, idx]
+            plot.plotBasisFunctions(s_evaled , v_evaled)
+
+            guard = len(s_evaled)
+            epsilon = 0.001
+            options = []
+            actionSetPerOption = []
+            for i in range(guard):
+                idx = guard - i - 1
+                print('Solving for eigenvector #' + str(idx))
+                polIter = PolicyIteration(0.9, self.env, augmentActionSet=True)
+                self.env.define_reward_function(v_evaled[:, idx])
+                V, pi = polIter.solvePolicyIteration()
+
+                # Now I will eliminate any actions that may give us a small improvement.
+                # This is where the epsilon parameter is important. If it is not set all
+                # it will never be considered, since I set it to a very small value
+                for j in range(len(V)):
+                    if V[j] < epsilon:
+                        pi[j] = len(self.env.get_action_set())
+
+                # if plotGraphs:
+                plot.plotValueFunction(V[0:self.nb_states], str(idx) + '_')
+                plot.plotPolicy(pi[0:self.nb_states], str(idx) + '_')
+
+                options.append(pi[0:self.nb_states])
+                optionsActionSet = self.env.get_action_set()
+                np.append(optionsActionSet, ['terminate'])
+                actionSetPerOption.append(optionsActionSet)
 
         return s, v
 
@@ -227,43 +276,43 @@ class SFAgent(BaseAgent):
         if self.nb_episodes % FLAGS.summary_interval == 0 and self.nb_episodes != 0 and self.total_steps > FLAGS.observation_steps:
             if self.nb_episodes % FLAGS.checkpoint_interval == 0:
                 self.save_model(self.saver, self.total_steps)
-
-            sf_l, r_l, t_l, ms = train_stats
-
-            mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
-            mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
-            mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
-            max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
-            min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
-
-
-            self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-            self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-            self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
-            self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
-            self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
-            self.summary.value.add(tag='Perf/Probability_random_action',
-                                   simple_value=float(self.probability_of_random_action))
-
-            self.summary.value.add(tag='Losses/SF_Loss', simple_value=float(sf_l))
-            self.summary.value.add(tag='Losses/R_Loss', simple_value=float(r_l))
-            self.summary.value.add(tag='Losses/T_Loss', simple_value=float(t_l))
-
-            self.write_summary(ms)
+            if train_stats is not None:
+                sf_l, ms = train_stats
+    
+                mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
+                mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
+                mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
+                max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
+                min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
+    
+    
+                self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+                self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
+                self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
+                self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
+                self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
+                self.summary.value.add(tag='Perf/Probability_random_action',
+                                       simple_value=float(self.probability_of_random_action))
+    
+                self.summary.value.add(tag='Losses/SF_Loss', simple_value=float(sf_l))
+                # self.summary.value.add(tag='Losses/R_Loss', simple_value=float(r_l))
+                # self.summary.value.add(tag='Losses/T_Loss', simple_value=float(t_l))
+    
+                self.write_summary(ms)
 
     def policy_evaluation(self, s):
         action_values_evaled = None
         self.probability_of_random_action = self.exploration.value(self.total_steps)
-        if random.random() <= self.probability_of_random_action:
-            a = np.random.choice(range(self.nb_actions))
-        else:
-            state_features = np.identity(self.nb_states)
-            feed_dict = {self.q_net.features: state_features[s:s+1]}
-            action_values_evaled = self.sess.run(self.q_net.q, feed_dict=feed_dict)[0]
+        # if random.random() <= self.probability_of_random_action:
+        a = np.random.choice(range(self.nb_actions))
+        # else:
+        #     state_features = np.identity(self.nb_states)
+        #     feed_dict = {self.q_net.features: state_features[s:s+1]}
+        #     action_values_evaled = self.sess.run(self.q_net.q, feed_dict=feed_dict)[0]
+        #
+        #     a = np.argmax(action_values_evaled)
 
-            a = np.argmax(action_values_evaled)
-
-        return a, np.max(action_values_evaled)
+        return a, 0
 
     def policy_evaluation_eval(self, s):
         feed_dict = {self.q_net.inputs: [s]}

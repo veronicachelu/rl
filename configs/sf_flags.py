@@ -2,10 +2,10 @@ import tensorflow as tf
 
 tf.app.flags.DEFINE_integer('summary_interval', 10, """Number of episodes of interval between summary saves""")
 tf.app.flags.DEFINE_integer('checkpoint_interval', 10, """Number of episodes of interval between checkpoint saves""")
-tf.app.flags.DEFINE_integer('max_total_steps', 100000, """""")
+tf.app.flags.DEFINE_integer('max_total_steps', 1000000, """""")
 tf.app.flags.DEFINE_string('mdp_path', './mdps/toy.mdp',
                            """Directory from where to load the environment geometry""")
-tf.app.flags.DEFINE_integer('nb_steps_sf', 10000, """Number of steps to run fitted successor features learning""")
+tf.app.flags.DEFINE_integer('nb_steps_sf', 100000, """Number of steps to run fitted successor features learning""")
 tf.app.flags.DEFINE_integer('sf_memory_size', 1000, """Number of steps to run fitted successor features learning""")
 tf.app.flags.DEFINE_float('gamma', 0.99, """Gamma value""")
 tf.app.flags.DEFINE_float('lr', 0.001, """Learning rate value""")
