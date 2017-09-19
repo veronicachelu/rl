@@ -34,6 +34,15 @@ def recreate_directory_structure():
             tf.gfile.DeleteRecursively(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
             tf.gfile.MakeDirs(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
 
+    if not tf.gfile.Exists(FLAGS.draw_dir):
+        tf.gfile.MakeDirs(FLAGS.draw_dir)
+    if not tf.gfile.Exists(os.path.join(FLAGS.draw_dir, FLAGS.algorithm)):
+        tf.gfile.MakeDirs(os.path.join(FLAGS.draw_dir, FLAGS.algorithm))
+    else:
+        if not FLAGS.resume and FLAGS.train:
+            tf.gfile.DeleteRecursively(os.path.join(FLAGS.draw_dir, FLAGS.algorithm))
+            tf.gfile.MakeDirs(os.path.join(FLAGS.draw_dir, FLAGS.algorithm))
+
 
 def run():
     recreate_directory_structure()

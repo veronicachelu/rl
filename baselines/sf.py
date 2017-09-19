@@ -38,12 +38,7 @@ class SF:
 
     def eval(self):
         self.agent.eval(self.saver)
-        while True:
-            if FLAGS.show_training:
-                self.env.render()
+
     def train(self):
         self.agent.play(self.saver)
 
-        while True:
-            if FLAGS.show_training:
-                self.env.render()

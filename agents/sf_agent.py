@@ -11,6 +11,7 @@ from utils.timer import Timer
 import os
 FLAGS = tf.app.flags.FLAGS
 import random
+from visuals.visualizer import Visualizer
 
 # Starting threads
 main_lock = Lock()
@@ -165,12 +166,12 @@ class SFAgent(BaseAgent):
                     self.episode_buffer.popleft()
 
                 if self.total_steps > FLAGS.observation_steps and len(
-                        self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
+                        self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0 and FLAGS.task != "discover":
                     sf_l, r_l, t_l, ms = self.train()
                     train_stats = sf_l, r_l, t_l, ms
 
                 if len(self.sf_buffer) == FLAGS.sf_memory_size:
-                    # s, v = self.PCA()
+                    s, v = self.discover_options()
                     self.sf_buffer.popleft()
 
                 if self.total_steps > FLAGS.nb_steps_sf:
@@ -182,16 +183,12 @@ class SFAgent(BaseAgent):
                 self.sess.run(self.increment_global_step)
 
 
-
-
-
             _t["episode"].toc()
         # print('Avg time per step is {:.3f}'.format(_t["step"].average_time()))
         # print('Avg time per episode is {:.3f}'.format(_t["episode"].average_time()))
 
         # fps = self.total_steps / _t['Total'].duration
         # print('Average time per episod is {}'.format(_t['episode'].average_time))
-
 
 
     def add_successive_feature(self, s, a):
@@ -203,12 +200,18 @@ class SFAgent(BaseAgent):
         sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
         self.sf_buffer.append(sf_feat_a)
 
-    def PCA(self):
+    def discover_options(self):
         sf_matrix = tf.convert_to_tensor(np.squeeze(np.array(self.sf_buffer)), dtype=tf.float32)
         s, u, v = tf.svd(sf_matrix)
         # discard noise, get first 10
         s = s[:10]
         v = v[:10]
+
+        if FLAGS.task == "discover":
+            # Plotting all the basis
+            plot = Visualizer(self.env)
+            plot.plotBasisFunctions(s, v)
+
         return s, v
 
 
