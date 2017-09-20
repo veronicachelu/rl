@@ -9,7 +9,7 @@ from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
-from tools.policy_iteration import PolicyIteration
+from learning.policy_iteration import PolicyIteration
 FLAGS = tf.app.flags.FLAGS
 import random
 from utils.visualizer import Visualizer
@@ -24,7 +24,7 @@ class SFAgent(BaseAgent):
         self.model_path = os.path.join(FLAGS.checkpoint_dir, FLAGS.algorithm)
 
         self.nb_states = self.env.nb_states
-        self.sf_buffer = np.zeros([25, 25])
+        self.sf_buffer = np.zeros([625, 25])
         self.seen_states = set()
         self.episode_rewards = []
         self.episode_lengths = []
@@ -178,7 +178,8 @@ class SFAgent(BaseAgent):
                     # self.sf_buffer.popleft()
 
                 if self.total_steps > FLAGS.nb_steps_sf:
-                    self.construct_successive_matrix()
+                    # self.construct_successive_matrix()
+                    self.construct_incidence_matrix()
                     # self.add_successive_feature(s, a)
 
 
@@ -199,24 +200,44 @@ class SFAgent(BaseAgent):
             state_features = np.identity(self.nb_states)
             sf_feat = self.sess.run(self.q_net.sf,
                                     feed_dict={self.q_net.features: state_features[s:s + 1]})
-            a = np.random.choice(range(self.nb_actions))
-            a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
-            a_one_hot[0, a] = 1
-            sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
-            self.sf_buffer[s] = sf_feat_a
+            # a = np.random.choice(range(self.nb_actions))
+            # a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
+            # a_one_hot[0, a] = 1
+            # sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
+            self.sf_buffer[s] = sf_feat
             if s not in self.seen_states:
                 self.seen_states.add(s)
 
-    def add_successive_feature(self, s, a):
-        state_features = np.identity(self.nb_states)
-        sf_feat = self.sess.run(self.q_net.sf,
-                                         feed_dict={self.q_net.features: state_features[s:s+1]})
-        a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
-        a_one_hot[0, a] = 1
-        sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
-        if s not in self.seen_states:
-            self.seen_states.add(s)
-        self.sf_buffer[s] = sf_feat_a
+    def construct_incidence_matrix(self):
+        i = 0
+        for s in range(self.nb_states):
+            for s1 in range(self.nb_states):
+                state_features = np.identity(self.nb_states)
+
+                sf_feat = self.sess.run(self.q_net.sf,
+                                        feed_dict={self.q_net.features: state_features[s:s + 1]})
+                sf_feat1 = self.sess.run(self.q_net.sf,
+                                        feed_dict={self.q_net.features: state_features[s1:s1 + 1]})
+
+                trans = state_features[s1:s1 + 1] - state_features[s:s + 1]
+
+                self.sf_buffer[i] = trans
+                i += 1
+            if s not in self.seen_states:
+                self.seen_states.add(s)
+
+
+
+    # def add_successive_feature(self, s, a):
+    #     state_features = np.identity(self.nb_states)
+    #     sf_feat = self.sess.run(self.q_net.sf,
+    #                                      feed_dict={self.q_net.features: state_features[s:s+1]})
+    #     a_one_hot = np.zeros(shape=(1, self.nb_actions, self.nb_states), dtype=np.int32)
+    #     a_one_hot[0, a] = 1
+    #     sf_feat_a = np.sum(np.multiply(sf_feat, a_one_hot), axis=1)
+    #     if s not in self.seen_states:
+    #         self.seen_states.add(s)
+    #     self.sf_buffer[s] = sf_feat_a
 
     def discover_options(self):
         sf_matrix = tf.convert_to_tensor(np.squeeze(np.array(self.sf_buffer)), dtype=tf.float32)
@@ -236,7 +257,7 @@ class SFAgent(BaseAgent):
             plot.plotBasisFunctions(s_evaled , v_evaled)
 
             guard = len(s_evaled)
-            epsilon = 0.001
+            epsilon = 0
             options = []
             actionSetPerOption = []
             for i in range(guard):
@@ -262,6 +283,7 @@ class SFAgent(BaseAgent):
                 np.append(optionsActionSet, ['terminate'])
                 actionSetPerOption.append(optionsActionSet)
 
+        exit(0)
         return s, v
 
 

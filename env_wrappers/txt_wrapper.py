@@ -170,7 +170,7 @@ class GridWorld:
         return nextStateIdx, reward, done
 
     def get_action_set(self):
-        return range(0, 3)
+        return range(0, 4)
 
     def define_reward_function(self, vector):
         self.rewardFunction = vector

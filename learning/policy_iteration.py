@@ -1,9 +1,3 @@
-'''
-This class implements policy iteration so we can solve an MDP and extract the
-optimal policy. These learned policies will compose an option to be specified.
-
-Author: Marlos C. Machado
-'''
 import math
 
 import numpy as np
@@ -37,7 +31,7 @@ class PolicyIteration:
         for s in range(self.nb_states):
             v = self.V[s]
             nextS, nextR = self.environment.get_next_state_and_reward(
-                s, self.actionSet[self.pi[s]])
+                s, self.pi[s])
 
             self.V[s] = nextR + self.gamma * self.V[nextS]
             delta = max(delta, math.fabs(v - self.V[s]))
@@ -53,7 +47,7 @@ class PolicyIteration:
             # I first get all value-function estimates
             for i in range(len(self.actionSet)):
                 nextS, nextR = self.environment.get_next_state_and_reward(
-                    s, self.actionSet[i])
+                    s, i)
                 tempV[i] = nextR + self.gamma * self.V[nextS]
 
             # Now I take the argmax
@@ -101,7 +95,7 @@ class PolicyIteration:
                 tempSum = 0
                 for a in range(len(pi[s])):
                     nextS, nextR = self.environment.getNextStateAndReward(
-                        s, self.actionSet[a])
+                        s, a)
                     tempSum += pi[s][a] * 1.0 * (
                         nextR + self.gamma * self.V[nextS])
 

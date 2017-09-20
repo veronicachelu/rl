@@ -1,9 +1,9 @@
 import matplotlib.patches as patches
 import matplotlib.pylab as plt
 import mpl_toolkits.mplot3d.axes3d as axes3d
-import plotly.plotly as py
-import plotly.tools as tls
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
+# import plotly.plotly as py
+# import plotly.tools as tls
+# from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import numpy as np
 from matplotlib import cm
 import tensorflow as tf
@@ -83,7 +83,7 @@ class Visualizer:
         ax.plot_surface(X, Y, Z, rstride=1, cstride=1,
                         cmap=plt.get_cmap('jet'))
         plt.gca().view_init(elev=30, azim=30)
-        plt.savefig(self.outputPath + prefix + 'value_function.png')
+        plt.savefig(os.path.join(self.outputPath, "SuccessorFeatures" + prefix + 'value_function.png'))
         plt.close()
 
     def plotPolicy(self, policy, prefix):
@@ -130,7 +130,7 @@ class Visualizer:
             plt.axhline(j, color='k', linestyle=':')
         plt.axhline(self.numRows, color='k', linestyle=':')
 
-        plt.savefig(self.outputPath + prefix + 'policy.png')
+        plt.savefig(os.path.join(self.outputPath, "SuccessorFeatures_" + prefix + 'policy.png'))
         plt.close()
 
     def plotLine(self, x_vals, y_vals, x_label, y_label, title, filename=None):
@@ -148,4 +148,4 @@ class Visualizer:
         if filename == None:
             plt.show()
         else:
-            plt.savefig(self.outputPath + filename)
+            plt.savefig(os.path.join(self.outputPath, "SuccessorFeatures" + filename))
