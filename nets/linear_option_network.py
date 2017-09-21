@@ -10,28 +10,28 @@ from utils.optimizers import huber_loss, minimize_and_clip, l2_loss, minimize
 FLAGS = tf.app.flags.FLAGS
 
 
-class SFNetwork:
+class LinearOptionNetwork:
     def __init__(self, nb_actions, nb_states, scope):
         with tf.variable_scope(scope):
 
             self.nb_actions = nb_actions
             self.nb_states = nb_states
 
-            self.features = tf.placeholder(shape=[None, nb_states], dtype=tf.float32, name="Input")
+            self.features = tf.placeholder(shape=[None, nb_states], dtype=tf.float32, scope="Input")
 
-            self.w_sf = tf.Variable(tf.random_uniform([nb_states, nb_states], 0, 0.01), name="W_SF")
-            self.sf = tf.matmul(self.features, self.w_sf)
+            sf = layers.fully_connected(self.features, num_outputs=nb_actions * nb_states,
+                                               activation_fn=None,
+                                               variables_collections=tf.get_collection("variables"),
+                                               outputs_collections="activations", scope="SF")
 
-            # self.w_sf = tf.Variable(tf.random_uniform([nb_states, nb_actions * nb_states], 0, 0.01), name="W_SF")
-            # self.sf = tf.matmul(self.features, self.w_sf)
-            # self.sf = tf.reshape(self.sf, [-1, self.nb_actions, nb_states])
-            #
-            # self.w_r = tf.Variable(tf.random_uniform([nb_states, 1], 0, 0.01), name="W_R")
-            # self.reward = tf.matmul(self.features, self.w_r)
-            # self.reward = tf.squeeze(self.reward)
-            #
-            # self.sf_temp = tf.reshape(self.sf, [-1, nb_states])
-            # self.q = tf.matmul(self.sf_temp, self.w_r)
+            self.sf = tf.reshape(sf, [-1, self.nb_actions, nb_states])
+
+            self.reward = layers.fully_connected(self.features, num_outputs=1,
+                                        activation_fn=None,
+                                        variables_collections=tf.get_collection("variables"),
+                                        outputs_collections="activations", name="reward")
+            self.sf_temp = tf.reshape(self.sf, [-1, nb_states])
+            self.q = tf.matmul(self.sf_temp,  self.get_var('orig/reward/weights'))
             # self.q = tf.reshape(self.q, [-1, self.nb_actions, 1])
             # self.q = tf.squeeze(self.q, 2)
 
@@ -70,6 +70,13 @@ class SFNetwork:
                         self.summaries.append(tf.summary.histogram(weight.name, weight))
 
                 self.merged_summary = tf.summary.merge(self.summaries)
+
+    def get_var(self, name):
+        all_vars = tf.trainable_variables()
+        for i in range(len(all_vars)):
+            if all_vars[i].name.startswith(name):
+                return all_vars[i]
+        return None
 
 
 

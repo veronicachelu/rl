@@ -10,14 +10,12 @@ from utils.schedules import LinearSchedule
 from utils.timer import Timer
 import os
 from learning.policy_iteration import PolicyIteration
-
 FLAGS = tf.app.flags.FLAGS
 import random
 from utils.visualizer import Visualizer
 
 # Starting threads
 main_lock = Lock()
-
 
 class SFAgent(BaseAgent):
     def __init__(self, game, sess, nb_actions, global_step):
@@ -39,8 +37,8 @@ class SFAgent(BaseAgent):
         self.episode_mean_returns = []
         self.episode_max_returns = []
         self.episode_min_returns = []
-        self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
-                                          FLAGS.initial_random_action_prob)
+        # self.exploration = LinearSchedule(FLAGS.explore_steps, FLAGS.final_random_action_prob,
+        #                                   FLAGS.initial_random_action_prob)
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
         self.summary = tf.Summary()
 
@@ -65,7 +63,7 @@ class SFAgent(BaseAgent):
         state_features = np.identity(self.nb_states)
 
         target_sf_evaled = self.sess.run(self.target_net.sf,
-                                         feed_dict={self.target_net.features: state_features[next_observations]})
+                                                     feed_dict={self.target_net.features: state_features[next_observations]})
         # target_sf_evaled_exp = np.mean(target_sf_evaled, axis=1)
 
         # gamma = np.tile(np.expand_dims(np.asarray(np.logical_not(done), dtype=np.int32) * FLAGS.gamma, 1),
@@ -76,7 +74,7 @@ class SFAgent(BaseAgent):
         feed_dict = {self.q_net.target_sf: target_sf_evaled,
                      # self.q_net.target_reward: np.stack(rewards, axis=0),
                      self.q_net.features: state_features[observations]}
-        # self.q_net.actions: actions}
+                     # self.q_net.actions: actions}
         sf_l, _, ms = self.sess.run(
             [self.q_net.sf_loss,
              # self.q_net.reward_loss,
@@ -109,6 +107,7 @@ class SFAgent(BaseAgent):
                 while not d:
                     a = self.policy_evaluation_eval(s)
 
+
                     s1, r, d, info = self.env.step(a)
 
                     r = np.clip(r, -1, 1)
@@ -130,11 +129,9 @@ class SFAgent(BaseAgent):
         # if self.total_steps == 0:
         #     self.updateTarget()
         self.nb_episodes = 0
-        state_features = np.identity(self.nb_states)
         episode_reward = 0
         episode_step_count = 0
         q_values = []
-        td_error = 0
         print("Starting agent")
         _t = {'episode': Timer(), "step": Timer()}
         with self.sess.as_default(), self.graph.as_default():
@@ -142,8 +139,8 @@ class SFAgent(BaseAgent):
 
                 if self.total_steps == 0 or d or episode_step_count % 30 == 0:
                     _t["episode"].tic()
-                    # if self.total_steps % FLAGS.target_update_freq == 0:
-                    #     self.updateTarget()
+                    if self.total_steps % FLAGS.target_update_freq == 0:
+                        self.updateTarget()
                     self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
                     episode_reward = 0
                     episode_step_count = 0
@@ -157,23 +154,20 @@ class SFAgent(BaseAgent):
                 _t["step"].tic()
                 a, max_action_values_evaled = self.policy_evaluation(s)
 
-                # if max_action_values_evaled is None:
-                #     q_values.append(0)
-                # else:
-                #     q_values.append(max_action_values_evaled)
+                if max_action_values_evaled is None:
+                    q_values.append(0)
+                else:
+                    q_values.append(max_action_values_evaled)
 
                 s1, r, d = self.env.step(a)
-                self.env.render()
+                # self.env.render()
 
                 r = np.clip(r, -1, 1)
                 episode_reward += r
                 episode_step_count += 1
                 self.total_steps += 1
-                td_error = (state_features[s] + FLAGS.gamma * self.sf_table[s1]) - self.sf_table[s]
-                q_values.append(td_error)
-                # print(sum(td_error))
                 # self.episode_buffer.append([s, a, r, s1, d])
-                self.sf_table[s] = self.sf_table[s] + FLAGS.lr * td_error
+                self.sf_table[s] = self.sf_table[s] + FLAGS.lr * ((r + FLAGS.gamma * self.sf_table[s1]) - self.sf_table[s])
 
                 s = s1
 
@@ -185,29 +179,30 @@ class SFAgent(BaseAgent):
                 #     sf_l, ms = self.train()
                 #     train_stats = sf_l, ms
 
-                if self.total_steps > FLAGS.nb_steps_sf:
+                if len(self.seen_states) == self.nb_states:
                     s, v = self.discover_options()
                     # self.sf_buffer.popleft()
 
-                # if self.total_steps > FLAGS.nb_steps_sf:
+                if self.total_steps > FLAGS.nb_steps_sf:
 
-                    # if FLAGS.matrix_type == "incidence":
-                    #     self.construct_incidence_matrix()
-                    # else:
-                    #     self.construct_successive_matrix()
-                # self.add_successive_feature(s, a)
+                    if FLAGS.matrix_type == "incidence":
+                        self.construct_incidence_matrix()
+                    else:
+                        self.construct_successive_matrix()
+                #  self.add_successive_feature(s, a)
 
 
                 _t["step"].toc()
 
                 self.sess.run(self.increment_global_step)
 
-            _t["episode"].toc()
-            # print('Avg time per step is {:.3f}'.format(_t["step"].average_time()))
-            # print('Avg time per episode is {:.3f}'.format(_t["episode"].average_time()))
 
-            # fps = self.total_steps / _t['Total'].duration
-            # print('Average time per episod is {}'.format(_t['episode'].average_time))
+            _t["episode"].toc()
+        # print('Avg time per step is {:.3f}'.format(_t["step"].average_time()))
+        # print('Avg time per episode is {:.3f}'.format(_t["episode"].average_time()))
+
+        # fps = self.total_steps / _t['Total'].duration
+        # print('Average time per episod is {}'.format(_t['episode'].average_time))
 
     def construct_successive_matrix(self):
         for s in range(self.nb_states):
@@ -231,7 +226,7 @@ class SFAgent(BaseAgent):
                 sf_feat = self.sess.run(self.q_net.sf,
                                         feed_dict={self.q_net.features: state_features[s:s + 1]})
                 sf_feat1 = self.sess.run(self.q_net.sf,
-                                         feed_dict={self.q_net.features: state_features[s1:s1 + 1]})
+                                        feed_dict={self.q_net.features: state_features[s1:s1 + 1]})
 
                 trans = state_features[s1:s1 + 1] - state_features[s:s + 1]
 
@@ -239,6 +234,8 @@ class SFAgent(BaseAgent):
                 i += 1
             if s not in self.seen_states:
                 self.seen_states.add(s)
+
+
 
     # def add_successive_feature(self, s, a):
     #     state_features = np.identity(self.nb_states)
@@ -252,7 +249,7 @@ class SFAgent(BaseAgent):
     #     self.sf_buffer[s] = sf_feat_a
 
     def discover_options(self):
-        sf_matrix = tf.convert_to_tensor(np.squeeze(np.array(self.sf_table)), dtype=tf.float32)
+        sf_matrix = tf.convert_to_tensor(np.squeeze(np.array(self.sf_buffer)), dtype=tf.float32)
         s, u, v = tf.svd(sf_matrix)
 
         # discard noise, get first 10
@@ -262,11 +259,11 @@ class SFAgent(BaseAgent):
         if FLAGS.task == "discover":
             # Plotting all the basis
             plot = Visualizer(self.env)
-            s_evaled, v_evaled = self.sess.run([s, v])
+            s_evaled , v_evaled = self.sess.run([s, v])
             idx = s_evaled.argsort()[::-1]
             s_evaled = s_evaled[idx]
             v_evaled = v_evaled[:, idx]
-            plot.plotBasisFunctions(s_evaled, v_evaled)
+            plot.plotBasisFunctions(s_evaled , v_evaled)
 
             guard = len(s_evaled)
             epsilon = 0
@@ -298,6 +295,7 @@ class SFAgent(BaseAgent):
         exit(0)
         return s, v
 
+
     def add_summary(self, episode_reward, episode_step_count, q_values, train_stats):
         self.episode_rewards.append(episode_reward)
         self.episode_lengths.append(episode_step_count)
@@ -309,28 +307,29 @@ class SFAgent(BaseAgent):
         if self.nb_episodes % FLAGS.summary_interval == 0 and self.nb_episodes != 0 and self.total_steps > FLAGS.observation_steps:
             if self.nb_episodes % FLAGS.checkpoint_interval == 0:
                 self.save_model(self.saver, self.total_steps)
-
-
-            mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
-            mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
-            mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
-            max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
-            min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
-
-            self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-            self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-            self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
-            self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
-            self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
-            self.summary.value.add(tag='Perf/Probability_random_action',
-                                   simple_value=float(self.probability_of_random_action))
-            # if train_stats is not None:
-            #     sf_l, ms = train_stats
-            # self.summary.value.add(tag='Losses/SF_Loss', simple_value=float(sf_l))
-            # self.summary.value.add(tag='Losses/R_Loss', simple_value=float(r_l))
-            # self.summary.value.add(tag='Losses/T_Loss', simple_value=float(t_l))
-
-            self.write_summary(None)
+            if train_stats is not None:
+                sf_l, ms = train_stats
+    
+                mean_reward = np.mean(self.episode_rewards[-FLAGS.summary_interval:])
+                mean_length = np.mean(self.episode_lengths[-FLAGS.summary_interval:])
+                mean_value = np.mean(self.episode_mean_values[-FLAGS.summary_interval:])
+                max_value = np.mean(self.episode_max_values[-FLAGS.summary_interval:])
+                min_value = np.mean(self.episode_min_values[-FLAGS.summary_interval:])
+    
+    
+                self.summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
+                self.summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
+                self.summary.value.add(tag='Perf/Value_Mean', simple_value=float(mean_value))
+                self.summary.value.add(tag='Perf/Value_Max', simple_value=float(max_value))
+                self.summary.value.add(tag='Perf/Value_Min', simple_value=float(min_value))
+                self.summary.value.add(tag='Perf/Probability_random_action',
+                                       simple_value=float(self.probability_of_random_action))
+    
+                self.summary.value.add(tag='Losses/SF_Loss', simple_value=float(sf_l))
+                # self.summary.value.add(tag='Losses/R_Loss', simple_value=float(r_l))
+                # self.summary.value.add(tag='Losses/T_Loss', simple_value=float(t_l))
+    
+                self.write_summary(ms)
 
     def policy_evaluation(self, s):
         action_values_evaled = None
