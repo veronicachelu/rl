@@ -165,6 +165,9 @@ class DQNLinearAgent(BaseAgent):
 
                     self.sess.run(self.increment_global_step)
 
+                    if episode_step_count == 23:
+                        d = True
+
 
                 self.add_summary(episode_reward, episode_step_count, q_values, train_stats)
 
