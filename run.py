@@ -57,6 +57,10 @@ def run():
         from configs import dqn_linear_flags
         from baselines.dqn_linear import DQNLinear
         alg = DQNLinear()
+    elif FLAGS.algorithm == "SFLinear":
+        from configs import sf_linear_flags
+        from baselines.sf_linear import SFLinear
+        alg = SFLinear()
     elif FLAGS.algorithm == "CategoricalDQN":
         from configs import categorical_dqn_flags
         from baselines.categorical_dqn import CategoricalDQN
