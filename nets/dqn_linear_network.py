@@ -10,44 +10,16 @@ from utils.optimizers import huber_loss, minimize_and_clip, l2_loss, minimize
 FLAGS = tf.app.flags.FLAGS
 
 
-class DQNetwork:
-    def __init__(self, nb_actions, scope):
+class DQLinearNetwork:
+    def __init__(self, nb_actions, nb_states, scope):
         with tf.variable_scope(scope):
 
-            self.inputs = tf.placeholder(
-                shape=[None, FLAGS.resized_height, FLAGS.resized_width, FLAGS.agent_history_length], dtype=tf.float32,
-                name="Input")
-
-            self.image_summaries = []
-            self.image_summaries.append(
-                tf.summary.image('input', tf.expand_dims(self.inputs[:, :, :, 0], 3), max_outputs=FLAGS.batch_size))
-
-            out = self.inputs
+            self.inputs = tf.placeholder(shape=[None, nb_states], dtype=tf.float32, name="Input")
             self.nb_actions = nb_actions
-            with tf.variable_scope("convnet"):
-                out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
-                                      variables_collections=tf.get_collection("variables"),
-                                      outputs_collections="activations")
-
-                out = layers.conv2d(out, num_outputs=32, kernel_size=5, stride=2, activation_fn=tf.nn.relu,
-                                      padding="VALID",
-                                      variables_collections=tf.get_collection("variables"),
-                                      outputs_collections="activations")
-            conv_out = layers.flatten(out)
-
-            with tf.variable_scope("action_value"):
-                value_out = layers.fully_connected(conv_out, num_outputs=FLAGS.hidden_size,
-                                                   activation_fn=None,
-                                                   variables_collections=tf.get_collection("variables"),
-                                                   outputs_collections="activations")
-                if FLAGS.layer_norm:
-                    value_out = layer_norm_fn(value_out, relu=True)
-                else:
-                    value_out = tf.nn.relu(value_out)
-                self.action_values = value_out = layers.fully_connected(value_out, num_outputs=nb_actions,
-                                                   activation_fn=None,
-                                                   variables_collections=tf.get_collection("variables"),
-                                                   outputs_collections="activations")
+            self.action_values = value_out = layers.fully_connected(self.inputs, num_outputs=nb_actions,
+                                               activation_fn=None,
+                                               variables_collections=tf.get_collection("variables"),
+                                               outputs_collections="activations")
 
             if scope != 'target':
                 self.actions = tf.placeholder(shape=[None], dtype=tf.int32, name="actions")

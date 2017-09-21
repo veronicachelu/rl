@@ -53,6 +53,10 @@ def run():
         from configs import dqn_flags
         from baselines.dqn import DQN
         alg = DQN()
+    elif FLAGS.algorithm == "DQNLinear":
+        from configs import dqn_linear_flags
+        from baselines.dqn_linear import DQNLinear
+        alg = DQNLinear()
     elif FLAGS.algorithm == "CategoricalDQN":
         from configs import categorical_dqn_flags
         from baselines.categorical_dqn import CategoricalDQN

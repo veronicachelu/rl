@@ -3,8 +3,8 @@ from threading import Lock
 import numpy as np
 import tensorflow as tf
 from agents.base_agent import BaseAgent
-from nets.dqn_network import DQNetwork
-from configs import dqn_flags
+from nets.dqn_linear_network import DQLinearNetwork
+from configs import dqn_linear_flags
 from collections import deque
 from utils.schedules import LinearSchedule
 from utils.timer import Timer
@@ -20,7 +20,7 @@ class DQNLinearAgent(BaseAgent):
         BaseAgent.__init__(self, game, sess, nb_actions, global_step)
         self.name = "DQN_linear_agent"
         self.model_path = os.path.join(FLAGS.checkpoint_dir, FLAGS.algorithm)
-
+        self.nb_action = nb_actions
         self.episode_rewards = []
         self.episode_lengths = []
         self.episode_mean_values = []
@@ -33,9 +33,9 @@ class DQNLinearAgent(BaseAgent):
                                           FLAGS.initial_random_action_prob)
         self.summary_writer = tf.summary.FileWriter(os.path.join(FLAGS.summaries_dir, FLAGS.algorithm))
         self.summary = tf.Summary()
-
-        self.q_net = DQLinearNetwork(nb_actions, 'orig')
-        self.target_net = DQLinearNetwork(nb_actions, 'target')
+        self.nb_states = game.nb_states
+        self.q_net = DQLinearNetwork(nb_actions, self.nb_states, 'orig')
+        self.target_net = DQLinearNetwork(nb_actions, self.nb_states, 'target')
 
         self.targetOps = self.update_target_graph('orig', 'target')
 
@@ -50,8 +50,10 @@ class DQNLinearAgent(BaseAgent):
         next_observations = rollout[:, 3]
         done = rollout[:, 4]
 
+        state_features = np.identity(self.nb_states)
+
         target_actionv_values_evaled = self.sess.run(self.target_net.action_values,
-                                                     feed_dict={self.target_net.inputs: np.stack(next_observations, axis=0)})
+                                                     feed_dict={self.target_net.inputs: state_features[next_observations]})
         target_actionv_values_evaled_max = np.max(target_actionv_values_evaled, axis=1)
 
         target_actionv_values_evaled_new = []
@@ -64,19 +66,18 @@ class DQNLinearAgent(BaseAgent):
                     rewards[i] + FLAGS.gamma * target_actionv_values_evaled_max[i])
 
         feed_dict = {self.q_net.target_q: target_actionv_values_evaled_new,
-                     self.q_net.inputs: np.stack(observations, axis=0),
+                     self.q_net.inputs: state_features[observations],
                      self.q_net.actions: actions}
-        l, _, ms, img_summ, returns = self.sess.run(
+        l, _, ms, returns = self.sess.run(
             [self.q_net.action_value_loss,
              self.q_net.train_op,
              self.q_net.merged_summary,
-             self.q_net.image_summaries,
              self.q_net.action_values],
             feed_dict=feed_dict)
 
         # self.updateTarget()
 
-        return l / len(rollout), ms, img_summ, returns
+        return l / len(rollout), ms, returns
 
     def updateTarget(self):
         for op in self.targetOps:
@@ -142,7 +143,7 @@ class DQNLinearAgent(BaseAgent):
                     if max_action_values_evaled is not None:
                         q_values.append(max_action_values_evaled)
 
-                    s1, r, d, info = self.env.step(a)
+                    s1, r, d = self.env.step(a)
 
                     r = np.clip(r, -1, 1)
                     episode_reward += r
@@ -157,8 +158,8 @@ class DQNLinearAgent(BaseAgent):
 
                     if self.total_steps > FLAGS.observation_steps and len(
                             self.episode_buffer) > FLAGS.observation_steps and self.total_steps % FLAGS.update_freq == 0:
-                        l, ms, img_summ, returns = self.train()
-                        train_stats = l, ms, img_summ, returns
+                        l, ms, returns = self.train()
+                        train_stats = l, ms, returns
 
                     _t["step"].toc()
 
@@ -188,7 +189,7 @@ class DQNLinearAgent(BaseAgent):
             if self.total_steps % FLAGS.checkpoint_interval == 0:
                 self.save_model(self.saver, self.total_steps)
 
-            l, ms, img_summ, returns = train_stats
+            l, ms, returns = train_stats
 
             self.episode_mean_returns.append(np.mean(np.asarray(returns)))
             self.episode_max_returns.append(np.max(np.asarray(returns)))
@@ -219,15 +220,16 @@ class DQNLinearAgent(BaseAgent):
             self.summary.value.add(tag='Perf/Probability_random_action', simple_value=float(self.probability_of_random_action))
             self.summary.value.add(tag='Losses/Loss', simple_value=float(l))
 
-            self.write_summary(ms, img_summ)
+            self.write_summary(ms, None)
 
     def policy_evaluation(self, s):
         action_values_evaled = None
         self.probability_of_random_action = self.exploration.value(self.total_steps)
         if random.random() <= self.probability_of_random_action:
-            a = np.random.choice(range(len(self.env.gym_actions)))
+            a = np.random.choice(range(self.nb_actions))
         else:
-            feed_dict = {self.q_net.inputs: [s]}
+            state_features = np.identity(self.nb_states)
+            feed_dict = {self.q_net.inputs: state_features[s:s+1]}
             action_values_evaled = self.sess.run(self.q_net.action_values, feed_dict=feed_dict)[0]
 
             a = np.argmax(action_values_evaled)
