@@ -48,13 +48,23 @@ class SFLinearAgent(BaseAgent):
         actions = rollout[:, 1]
         rewards = rollout[:, 2]
         next_observations = rollout[:, 3]
-        done = rollout[:, 4]
+        next_action = rollout[:, 4]
+        done = rollout[:, 5]
 
-        state_features = np.identity(self.nb_states)
+        state_features = np.identity(self.nb_states * self.nb_actions)
 
-        target_sf_evaled = self.sess.run(self.target_net.sf,
-                                                     feed_dict={self.target_net.inputs: state_features[next_observations]})
+        target_sf_evaled = self.sess.run([self.target_net.sf],
+                                                     feed_dict={self.target_net.inputs: state_features[next_observations + self.nb_states * next_actions]})
         target_sf_evaled_exp = np.mean(target_sf_evaled, axis=1)
+        next_actions = np.argmax(q_evaled, 1)
+        next_actions_one_hot = np.zeros(shape=(FLAGS.batch_size, self.nb_actions, self.nb_states), dtype=np.int32)
+        next_actions_one_hot[np.arange(FLAGS.batch_size), next_actions] = 1
+        target_sf_evaled_max = np.sum(np.multiply(target_sf_evaled, next_actions_one_hot), axis=1)
+
+        self.probability_of_random_action = self.exploration.value(self.total_steps)
+        target_sf_evaled_exp = self.probability_of_random_action * target_sf_evaled_exp +\
+                               (1 - self.probability_of_random_action) * target_sf_evaled_max
+
         gamma = np.tile(np.expand_dims(np.asarray(np.logical_not(done), dtype=np.int32) * FLAGS.gamma, 1),
                                         [1, self.nb_states])
         target_sf_evaled_new = state_features[observations] + gamma * target_sf_evaled_exp
@@ -64,11 +74,12 @@ class SFLinearAgent(BaseAgent):
                      self.q_net.target_reward: np.stack(rewards, axis=0),
                      self.q_net.inputs: state_features[observations],
                      self.q_net.actions: actions}
-        sf_l, r_l, t_l, _, ms = self.sess.run(
+        sf_l, r_l, t_l, _, _, ms = self.sess.run(
             [self.q_net.sf_loss,
              self.q_net.reward_loss,
              self.q_net.total_loss,
-             self.q_net.train_op,
+             self.q_net.train_op_sf,
+             self.q_net.train_op_r,
              self.q_net.merged_summary],
             feed_dict=feed_dict)
 
@@ -127,25 +138,35 @@ class SFLinearAgent(BaseAgent):
                 episode_reward = 0
                 episode_step_count = 0
                 q_values = []
+                if self.total_steps != 0:
+                    self.episode_buffer.append([prev_s, prev_a, r, s, a, d])
 
                 d = False
+
                 # self.probability_of_random_action = self.exploration.value(self.total_steps)
-                s = self.env.get_initial_state()
+                prev_s = s = self.env.get_initial_state()
+                prev_a = 0
 
                 while not d:
                     _t["step"].tic()
                     a, max_action_values_evaled = self.policy_evaluation(s)
 
+                    if episode_step_count != 0:
+                        self.episode_buffer.append([prev_s, prev_a, r, s, a, d])
+
                     if max_action_values_evaled is not None:
                         q_values.append(max_action_values_evaled)
 
                     s1, r, d = self.env.step(a)
+                    self.env.render()
 
                     r = np.clip(r, -1, 1)
                     episode_reward += r
                     episode_step_count += 1
                     self.total_steps += 1
-                    self.episode_buffer.append([s, a, r, s1, d])
+
+                    prev_s = s
+                    prev_a = a
 
                     s = s1
 

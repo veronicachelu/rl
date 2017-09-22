@@ -50,18 +50,24 @@ class SFLinearNetwork:
                 self.total_loss = self.sf_loss + self.reward_loss
 
                 if FLAGS.optimizer == "Adam": # to add more optimizers
-                    optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
+                    optimizer_sf = tf.train.AdamOptimizer(learning_rate=FLAGS.lr_sf)
+                    optimizer_r = tf.train.AdamOptimizer(learning_rate=FLAGS.lr_r)
                 else: # default = Adam
                     optimizer = tf.train.AdamOptimizer(learning_rate=FLAGS.lr)
-                gradients, self.train_op = minimize_and_clip(optimizer, self.total_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                gradients_sf, self.train_op_sf = minimize_and_clip(optimizer_sf, self.sf_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
+                gradients_r, self.train_op_r = minimize_and_clip(optimizer_sf, self.total_loss, tf.trainable_variables(), FLAGS.gradient_norm_clipping)
                 # gradients, self.train_op = minimize(optimizer, self.action_value_loss, tf.trainable_variables())
                 self.summaries = []
                 # self.summaries.append(
                 #     tf.contrib.layers.summarize_collection("variables"))  # tf.get_collection("variables")))
                 # self.summaries.append(tf.contrib.layers.summarize_collection("activations",
                 #                                                              summarizer=tf.contrib.layers.summarize_activation))
+                for grad, weight in gradients_sf:
+                    if grad is not None:
+                        self.summaries.append(tf.summary.histogram(weight.name + '_grad', grad))
+                        self.summaries.append(tf.summary.histogram(weight.name, weight))
 
-                for grad, weight in gradients:
+                for grad, weight in gradients_r:
                     if grad is not None:
                         self.summaries.append(tf.summary.histogram(weight.name + '_grad', grad))
                         self.summaries.append(tf.summary.histogram(weight.name, weight))

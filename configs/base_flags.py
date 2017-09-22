@@ -10,7 +10,7 @@ tf.app.flags.DEFINE_string('summaries_dir', './summaries',
 tf.app.flags.DEFINE_string('experiments_dir', './experiments',
                            """Directory where to write event experiments""")
 tf.app.flags.DEFINE_string('draw_dir', "./visuals", """Directory where to write visual plots""")
-tf.app.flags.DEFINE_boolean('resume', False,
+tf.app.flags.DEFINE_boolean('resume', True,
                             """Resume training from latest checkpoint""")
 tf.app.flags.DEFINE_boolean('train', True,
                             """Whether to train or test""")
