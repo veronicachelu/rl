@@ -9,7 +9,7 @@ import scipy.misc
 
 class GridWorld:
     def __init__(self, load_path=None):
-        self.rewardFunction = None
+        self.reward_function = None
         self.nb_actions = 4
         if load_path != None:
             self.read_file(load_path)
@@ -112,17 +112,17 @@ class GridWorld:
             return False
 
     def get_next_reward(self, nextX, nextY):
-        if self.rewardFunction is None:
+        if self.reward_function is None:
             if nextX == self.goalX and nextY == self.goalY:
                 reward = 1
             else:
                 reward = 0
         else:
-            currStateIdx = self.get_state_index(self.agentX, self.agentY)
-            nextStateIdx = self.get_state_index(nextX, nextY)
+            curr_state_idx = self.get_state_index(self.agentX, self.agentY)
+            next_state_index = self.get_state_index(nextX, nextY)
 
-            reward = self.rewardFunction[nextStateIdx] \
-                     - self.rewardFunction[currStateIdx]
+            reward = self.reward_function[next_state_index] \
+                     - self.reward_function[curr_state_idx]
 
         return reward
 
@@ -132,28 +132,28 @@ class GridWorld:
 
         return x, y
 
-    def get_next_state_and_reward(self, currState, a):
-        if currState == self.nb_states:
-            return currState, 0
+    def get_next_state_and_reward(self, curr_state, a):
+        if curr_state == self.nb_states:
+            return curr_state, 0
 
         tmpx, tmpy = self.agentX, self.agentY
-        self.agentX, self.agentY = self.get_state_xy(currState)
+        self.agentX, self.agentY = self.get_state_xy(curr_state)
         nextX, nextY = self.agentX, self.agentY
 
-        nextStateIdx = None
+        next_state_index = None
         reward = None
 
         nextX, nextY = self.get_next_state(a)
         if nextX != -1 and nextY != -1:  # If it is not the absorbing state:
             reward = self.get_next_reward(nextX, nextY)
-            nextStateIdx = self.get_state_index(nextX, nextY)
+            next_state_index = self.get_state_index(nextX, nextY)
         else:
             reward = 0
-            nextStateIdx = self.nb_states
+            next_state_index = self.nb_states
 
         self.agentX, self.agentY = tmpx, tmpy
 
-        return nextStateIdx, reward
+        return next_state_index, reward
 
     def step(self, a):
         nextX, nextY = self.get_next_state(a)
@@ -165,12 +165,17 @@ class GridWorld:
             done = True
 
         reward = self.get_next_reward(nextX, nextY)
-        nextStateIdx = self.get_state_index(nextX, nextY)
+        next_state_index = self.get_state_index(nextX, nextY)
 
-        return nextStateIdx, reward, done
+        return self.get_state_features(next_state_index, a), reward, done
+
+    def get_state_features(self, state_index, a):
+        state_features = np.identity(self.nb_states * self.nb_actions)
+
+        return state_features[state_index + self.nb_states * a]
 
     def get_action_set(self):
         return range(0, 4)
 
     def define_reward_function(self, vector):
-        self.rewardFunction = vector
+        self.reward_function = vector

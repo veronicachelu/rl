@@ -14,7 +14,7 @@ class SFLinearNetwork:
     def __init__(self, nb_actions, nb_states, scope):
         with tf.variable_scope(scope):
 
-            self.inputs = tf.placeholder(shape=[None, nb_states], dtype=tf.float32, name="Input")
+            self.inputs = tf.placeholder(shape=[None, nb_states * nb_actions], dtype=tf.float32, name="Input")
             self.nb_actions = nb_actions
             self.sf_temp = layers.fully_connected(self.inputs, num_outputs=nb_actions * nb_states,
                                                activation_fn=None,
